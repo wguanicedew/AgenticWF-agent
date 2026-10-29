@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenticwf-agent-server"
+version = "0.1.0"
+description = "AgenticWF agent (server): the backend service behind Caddy and the AgenticWF auth service"
+license = "Apache-2.0"
+authors = [{name = "Wen Guan", email = "wen.guan@cern.ch"}]
+requires-python = ">=3.11"
+# The client (AgentClient, `agenticwf agent`) is its own package, agenticwf-agent-client, in
+# client/; scripts/build-packages.sh builds both wheels.
+# Also needs `agenticwf-auth-server` (AuthContext verification), which is not on PyPI. Install
+# it from the AgenticWF-auth repository first:
+#   pip install ../AgenticWF-auth/authsvc
+#   pip install "git+https://github.com/InnovateAILab/AgenticWF-auth.git@<tag>#subdirectory=authsvc"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2",
+    "SQLAlchemy>=2",
+    "alembic",
+    "retrying",
+    "psycopg2-binary",   # PostgreSQL driver used by agenticwf.agent.core.orm
+    "PyYAML>=6.0",        # tool .md front matter, task.yaml, tool policy
+    "jsonschema>=4.18",   # tool input schemas
+    "cryptography>=42",   # model API keys stored encrypted in the database (agenticwf.agent.runtime.secrets)
+    "httpx>=0.27",        # the knowledge service client (agenticwf.agent.runtime.knowledge), over a Unix socket or HTTP
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "httpx>=0.27", "opentelemetry-sdk>=1.30"]
+# Model provider SDKs (docs/agent-models.md): `anthropic` for Claude, `openai` for OpenAI, vLLM and Ollama.
+llm = ["anthropic>=1.12", "openai>=3"]
+# OpenTelemetry over OTLP/HTTP (docs/deployment.md §8): traces and metrics of requests, jobs, model and tool calls.
+otel = ["opentelemetry-sdk>=1.30", "opentelemetry-exporter-otlp-proto-http>=1.30",
+        "opentelemetry-instrumentation-fastapi>=0.51b0", "opentelemetry-instrumentation-httpx>=0.51b0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agenticwf.agent*"]
+
+[project.scripts]
+agenticwf-agent = "agenticwf.agent.api.local:main"   # the personal agent on localhost (docs/local.md)
+agenticwf-agent-worker = "agenticwf.agent.api.worker:main"   # a worker process beside the API ([harness] shared; docs/deployment.md)
+
+[tool.setuptools.package-data]
+"agenticwf.agent.api" = ["web/*.html"]
+"agenticwf.agent.runtime" = ["defaults/task-types/*/*.md", "defaults/task-types/*/*.yaml", "defaults/prompts/*.md",
+                           "defaults/core-tools/*.md"]
+"agenticwf.agent.core.orm.base.alembic" = ["script.py.mako", "README"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

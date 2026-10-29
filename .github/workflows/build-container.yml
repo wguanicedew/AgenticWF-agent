@@ -1,0 +1,106 @@
+name: Build container
+
+# Build and publish the agent container whenever a tag is pushed.
+on:
+  push:
+    tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      agenticwf_ref:
+        description: AgenticWF-auth ref (tag) providing authsvc
+        required: false
+
+# Read-only by default; only the build job may publish packages.
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/agenticwf-agent
+  # authsvc comes from this AgenticWF-auth ref; keep it at the version of the deployed auth image.
+  # Tag builds use the repository variable AGENTICWF_REF (Settings → Variables), so a release
+  # image is reproducible and matches the auth image; `main` only as a last resort, with a warning.
+  AGENTICWF_REPO: InnovateAILab/AgenticWF-auth
+  AGENTICWF_REF: ${{ inputs.agenticwf_ref || vars.AGENTICWF_REF || 'main' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.AGENTICWF_REPO }}
+          ref: ${{ env.AGENTICWF_REF }}
+          path: .agenticwf
+          # If AgenticWF-auth is private, add a read token: token: ${{ secrets.AGENTICWF_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install ./.agenticwf/authsvc
+          pip install -e '.[test,llm]'
+          pytest -q
+      - name: Test against PostgreSQL
+        env:
+          AGENT_TEST_DB_URL: postgresql+psycopg2://postgres:test@127.0.0.1:5432/postgres
+        run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check the authsvc ref
+        if: github.ref_type == 'tag' && env.AGENTICWF_REF == 'main'
+        run: echo "::warning::authsvc is built from AgenticWF-auth main; set the AGENTICWF_REF repository variable to the deployed auth release"
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.AGENTICWF_REPO }}
+          ref: ${{ env.AGENTICWF_REF }}
+          path: .agenticwf
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.agenticwf.authsvc-ref=${{ env.AGENTICWF_REF }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: container/Dockerfile
+          build-contexts: |
+            authsvc=.agenticwf/authsvc
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

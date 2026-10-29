@@ -1,0 +1,1458 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgenticWF · Crons</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f6fed'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-size='17' font-weight='700' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#fff;--bg-soft:#f7f7f8;--bg-hover:#ececf1;--bg-input:#fff;--bg-code:#f6f6f7;--fg:#1f1f24;--fg-dim:#6b6b76;--fg-faint:#9a9aa5;
+  --border:#e2e2e7;--accent:#2f6fed;--accent-fg:#fff;--ok:#1a7f4b;--warn:#b26a00;--err:#c62828;--shadow:0 2px 12px rgba(0,0,0,.06);--radius:12px;
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#4a3aa7;--s8:#e34948}
+:root[data-theme="dark"]{--bg:#1e1f22;--bg-soft:#17181b;--bg-hover:#2a2b30;--bg-input:#26272c;--bg-code:#141518;--fg:#ececf1;--fg-dim:#a6a6b0;
+  --fg-faint:#73737d;--border:#34353b;--accent:#6b9bff;--accent-fg:#0b0c0f;--ok:#4cc38a;--warn:#f0b04c;--err:#ff6b6b;--shadow:0 2px 14px rgba(0,0,0,.35);
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1e1f22;--bg-soft:#17181b;--bg-hover:#2a2b30;--bg-input:#26272c;--bg-code:#141518;
+  --fg:#ececf1;--fg-dim:#a6a6b0;--fg-faint:#73737d;--border:#34353b;--accent:#6b9bff;--accent-fg:#0b0c0f;--ok:#4cc38a;--warn:#f0b04c;--err:#ff6b6b;--shadow:0 2px 14px rgba(0,0,0,.35);
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;--s8:#e66767}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg-soft);color:var(--fg)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+a{color:var(--accent);text-decoration:none}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;height:56px;padding:0 20px;background:var(--bg);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:650}
+.logo{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
+.tabs{display:flex;gap:4px;margin-left:12px}
+.tab{padding:7px 14px;border-radius:9px;color:var(--fg-dim);font-weight:550}
+.tab:hover{background:var(--bg-hover);color:var(--fg)}
+.tab.on{background:var(--bg-hover);color:var(--fg)}
+.spacer{flex:1}
+.who{font-size:14px;color:var(--fg-dim)}
+.icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--fg-dim)}
+.icon:hover{background:var(--bg-hover);color:var(--fg)}
+svg{width:18px;height:18px}
+main{max-width:1180px;margin:0 auto;padding:24px 20px 60px}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+h1{font-size:22px;margin:0}
+.lead{color:var(--fg-dim);margin:4px 0 0;font-size:14px;max-width:70ch}
+section.group{margin-top:26px}
+.ghead{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.ghead h2{font-size:15px;margin:0}
+.ghead .count{font-size:12px;color:var(--fg-faint)}
+.ghead .hint{font-size:13px;color:var(--fg-faint)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:104px}
+button.card:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));box-shadow:var(--shadow)}
+.card .name{font-weight:600;display:flex;align-items:center;gap:8px;word-break:break-all}
+.card .sub{font-size:13px;color:var(--fg-dim);word-break:break-word}
+.card .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+.card .e{color:var(--err);font-size:13px;word-break:break-word}
+.chip{font-size:11.5px;border:1px solid var(--border);border-radius:20px;padding:0 8px;color:var(--fg-dim);white-space:nowrap}
+.chip.own{border-color:var(--accent);color:var(--accent)}
+.chip.off{color:var(--fg-faint);text-decoration:line-through}
+.chip.lock{color:var(--fg-faint)}
+.chip.ok{border-color:color-mix(in srgb,var(--ok) 55%,var(--border));color:var(--ok)}
+.chip.bad{border-color:color-mix(in srgb,var(--err) 55%,var(--border));color:var(--err)}
+.chip.warn{border-color:color-mix(in srgb,var(--warn) 55%,var(--border));color:var(--warn)}
+.chip.fill.bad{background:var(--err);color:var(--bg);border-color:var(--err)}
+.dsec{margin:16px 0 0}.dsec h4{font-size:13px;margin:0 0 6px;color:var(--fg-dim);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.items{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.items li{padding:8px 12px;border-top:1px solid var(--border);font-size:14px;display:flex;flex-direction:column;gap:3px}
+.items li:first-child{border-top:0}
+.items .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.items .row.split{justify-content:space-between;flex-wrap:nowrap}.items .row.split>span{word-break:break-word}
+.items code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}
+.items .d{color:var(--fg-dim);font-size:13px;word-break:break-word}
+.items .e{color:var(--err);font-size:13px;word-break:break-word}
+.items li.click{cursor:pointer}.items li.click:hover{background:var(--bg-hover)}
+.items.wide{background:var(--bg)}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.toolbar input[type=text],.toolbar input[type=search]{flex:1;min-width:140px}
+.empty{font-size:14px;color:var(--fg-faint);border:1px dashed var(--border);border-radius:var(--radius);padding:16px;background:var(--bg)}
+.btn{padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:var(--bg);font-size:14px}
+.btn:hover{background:var(--bg-hover)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.danger{color:var(--err)}
+.btn.sm{padding:2px 9px;font-size:12.5px;border-radius:7px}
+.btn:disabled{opacity:.5;cursor:default}
+dialog{border:1px solid var(--border);border-radius:16px;padding:0;width:min(860px,95vw);max-height:92vh;background:var(--bg);color:var(--fg);box-shadow:var(--shadow)}
+dialog.big{width:min(1040px,96vw)}dialog.small{width:min(480px,95vw)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dhead{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.dhead h3{margin:0;font-size:17px;flex:1;word-break:break-word;min-width:120px}
+.dbody{padding:16px 18px;overflow:auto;max-height:calc(92vh - 130px)}
+.dfoot{display:flex;gap:8px;align-items:center;padding:12px 18px;border-top:1px solid var(--border);flex-wrap:wrap}
+.dfoot .err{color:var(--err);font-size:13px;flex:1}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--fg-dim)}
+.form label.inline{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--fg)}
+textarea,input,select{border:1px solid var(--border);border-radius:9px;padding:8px 10px;background:var(--bg-input);font-size:14px}
+input[type=checkbox]{padding:0;width:16px;height:16px;accent-color:var(--accent)}
+textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical;min-height:300px}
+textarea[readonly]{background:var(--bg-code);color:var(--fg-dim)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.form .wide{grid-column:1/-1}
+.form textarea{min-height:70px}
+.form textarea.tall{min-height:320px}
+.note{font-size:13px;color:var(--fg-dim);margin:0 0 12px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;margin-bottom:14px}
+.kv dt{color:var(--fg-faint)}.kv dd{margin:0;word-break:break-word}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;z-index:60}
+/* crons page */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin:16px 0 4px}
+.filters input[type=text]{width:130px}
+.filters .checks{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--fg-dim)}
+.filters .checks label{display:flex;gap:4px;align-items:center;white-space:nowrap}
+.site{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);margin-top:14px;overflow:hidden}
+.shead{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.shead h3{margin:0;font-size:15px;word-break:break-all}
+.shead .d{font-size:13px;color:var(--fg-dim)}
+.site .items{border:0;border-radius:0}
+.irow{flex-direction:row!important;align-items:flex-start;gap:10px!important}
+.irow>input{margin-top:4px;flex:none}
+.irow .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.title{font-weight:550;text-align:left;padding:0;color:var(--fg);word-break:break-word}
+button.title:hover{color:var(--accent)}
+.lk{font-size:12.5px;padding:0 3px}
+.done .title{text-decoration:line-through;color:var(--fg-faint)}
+.bulk{position:sticky;bottom:12px;z-index:4;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 12px;margin-top:14px;box-shadow:var(--shadow)}
+.bulk .n{font-weight:600;margin-right:4px}
+details.box{background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-top:8px}
+details.box>summary{cursor:pointer;padding:9px 12px;font-size:14px;font-weight:550}
+details.box>div{padding:0 12px 12px}
+pre.pre{white-space:pre-wrap;word-break:break-word;background:var(--bg-code);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:0}
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--bg)}
+table.t{border-collapse:collapse;width:100%;font-size:13.5px}
+table.t th,table.t td{padding:6px 10px;border-top:1px solid var(--border);text-align:left;vertical-align:top}
+table.t thead th{border-top:0;color:var(--fg-faint);font-weight:600;font-size:12.5px;white-space:nowrap}
+table.t td.n,table.t th.n{text-align:right;font-variant-numeric:tabular-nums}
+.tl{list-style:none;margin:0;padding:0 0 0 14px;border-left:2px solid var(--border)}
+.tl li{font-size:13.5px;margin:0 0 8px;position:relative}
+.tl li:before{content:"";position:absolute;left:-19px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--border)}
+.tl .when{color:var(--fg-faint);font-size:12.5px}
+.rgrid{display:grid;grid-template-columns:210px 1fr;gap:18px;margin-top:16px;align-items:start}
+.tree{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px;display:flex;flex-direction:column;gap:2px;position:sticky;top:72px}
+.tree button{text-align:left;padding:4px 10px;border-radius:7px;font-size:14px;color:var(--fg-dim);display:flex;justify-content:space-between;gap:8px}
+.tree button:hover{background:var(--bg-hover);color:var(--fg)}
+.tree button.on{background:var(--bg-hover);color:var(--fg);font-weight:600}
+.tree .l1{padding-left:22px}.tree .l2{padding-left:36px}
+.tree .c{color:var(--fg-faint);font-size:12px}
+.report{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.report h2{font-size:19px;margin:0;word-break:break-word}
+.report .rh{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.report .range{color:var(--fg-dim);font-size:14px;margin:2px 0 10px}
+.report .dsec h4{margin-top:22px}
+.sitehd{display:flex;gap:8px;align-items:center;margin:10px 0 6px;font-weight:600;flex-wrap:wrap}
+.md{font-size:14.5px;word-break:break-word}.md h1,.md h2,.md h3{font-size:15px;margin:14px 0 6px}.md p{margin:6px 0}
+.md ul{margin:4px 0;padding-left:20px}.md code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--bg-code);padding:0 3px;border-radius:4px}
+.md table{border-collapse:collapse;font-size:13px;margin:6px 0}.md td,.md th{border:1px solid var(--border);padding:3px 8px}
+.chart{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:8px}
+.chart .ct{font-size:13px;font-weight:600;margin-bottom:4px}
+svg.plot{width:100%;height:auto;display:block;overflow:visible}
+svg.plot text{fill:var(--fg-faint);font-size:11px;font-family:inherit}
+svg.plot .grid{stroke:var(--border);stroke-width:1}
+svg.plot .hit{fill:transparent;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--fg-dim);margin-top:6px}
+.legend span{display:flex;align-items:center;gap:6px;word-break:break-all}
+.legend i{width:12px;height:3px;border-radius:2px;flex:none}
+.stat{display:flex;gap:12px;flex-wrap:wrap}
+.stat div{background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:120px}
+.stat b{display:block;font-size:20px}.stat span{font-size:12.5px;color:var(--fg-dim)}
+.errbox{border:1px solid color-mix(in srgb,var(--err) 45%,var(--border));border-radius:10px;padding:10px 12px;background:var(--bg);color:var(--err);font-size:14px;margin-top:12px}
+.errbox div{word-break:break-word}
+@media (max-width:760px){.form{grid-template-columns:1fr}.tabs{margin-left:0}.who{display:none}header{gap:8px;padding:0 12px}
+  main{padding:18px 16px 60px}.rgrid{grid-template-columns:1fr}.tree{position:static;flex-direction:row;flex-wrap:wrap}
+  .tree .l1,.tree .l2{padding-left:10px}.tab{padding:7px 9px}.brand .bt{display:none}}
+</style></head><body>
+<header>
+  <a class="brand" href="./" title="Back to the chat"><span class="logo">A</span><span class="bt">AgenticWF</span></a>
+  <nav class="tabs"><button class="tab" data-tab="board">Board</button><button class="tab" data-tab="reports">Reports</button><button class="tab" data-tab="crons">Crons</button></nav>
+  <span class="spacer"></span>
+  <span class="who" id="who"></span>
+  <a class="icon" id="account-link" title="Edit your profile" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></a>
+  <a class="icon" href="./" title="Chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></a>
+  <a class="icon" href="admin" title="Admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
+  <button class="icon" id="theme" title="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+</header>
+
+<main>
+  <!-- ======================================================================= board -->
+  <div id="view-board" hidden>
+    <div class="pagehead">
+      <div><h1>Issue board</h1>
+        <p class="lead">What the crons found and still follow, worst site first. Tick issues to acknowledge, take, solve, snooze
+          or stop following them. Changes arrive live.</p></div>
+      <button class="btn" id="b-refresh">Refresh</button>
+    </div>
+    <div class="filters" id="b-filters">
+      <select id="b-cron" title="Cron"><option value="">All crons</option></select>
+      <input type="text" id="b-site" placeholder="Site">
+      <select id="b-check" title="Check"><option value="">All checks</option></select>
+      <select id="b-severity" title="Severity"><option value="">Any severity</option></select>
+      <span class="checks" id="b-status"></span>
+      <span class="checks"><label><input type="checkbox" id="b-recurring">recurring</label><label><input type="checkbox" id="b-related">related</label></span>
+    </div>
+    <div id="b-sites"></div>
+    <div class="bulk" id="bulk" hidden>
+      <span class="n" id="bulk-n"></span>
+      <button class="btn sm" data-bulk="acknowledge">Acknowledge</button>
+      <button class="btn sm" data-bulk="take">I'm on it</button>
+      <button class="btn sm" data-bulk="solve">Solved</button>
+      <button class="btn sm" data-bulk="snooze">Snooze</button>
+      <button class="btn sm" data-bulk="ignore">Won't follow</button>
+      <button class="btn sm" data-bulk="comment">Comment</button>
+      <span class="spacer"></span>
+      <button class="btn sm" id="bulk-clear">Clear</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>Won't-follow rules</h2><span class="hint">findings matching a rule are not followed as issues</span></div>
+      <div id="b-supps"></div></section>
+  </div>
+
+  <!-- ======================================================================= reports -->
+  <div id="view-reports" hidden>
+    <div class="pagehead">
+      <div><h1>Reports</h1>
+        <p class="lead">Period reports and rollups, built from the issue history, the runs and the metrics. Pick a year, month or
+          day on the left; filter by cron, kind, site or text.</p></div>
+    </div>
+    <div class="filters">
+      <select id="r-cron" title="Cron"><option value="">All crons</option></select>
+      <select id="r-kind" title="Kind"><option value="">All kinds</option></select>
+      <input type="text" id="r-site" placeholder="Site">
+      <input type="text" id="r-q" placeholder="Search summaries" style="flex:1;min-width:140px">
+    </div>
+    <details class="box" id="r-new-box" hidden><summary>New report for a range</summary>
+      <div><form class="form" id="r-new" autocomplete="off">
+        <label>Cron<select name="cron" required></select></label>
+        <label>Template (optional)<input name="template" placeholder="e.g. reports/weekly.md"></label>
+        <label>From<input name="from" type="datetime-local" required></label>
+        <label>To<input name="to" type="datetime-local" required></label>
+        <div class="wide"><button class="btn primary" type="submit">Build report</button> <span class="note" id="r-new-err" style="color:var(--err)"></span></div>
+      </form></div></details>
+    <div class="rgrid">
+      <nav class="tree" id="r-tree"></nav>
+      <div>
+        <div id="r-list-box">
+          <div class="ghead"><h2 id="r-list-title">All reports</h2><span class="count" id="r-count"></span><span class="hint">newest first</span></div>
+          <div id="r-list"></div>
+          <div class="toolbar" style="margin-top:10px"><button class="btn" id="r-more" hidden>Show more</button></div>
+        </div>
+        <div id="r-detail" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= crons -->
+  <div id="view-crons" hidden>
+    <div class="pagehead">
+      <div><h1>Crons</h1>
+        <p class="lead">A cron runs its checks on a schedule, follows what they find as issues and writes reports. System and plugin
+          crons are installed by operators; crons you add here run as you, with your scopes.</p></div>
+      <button class="btn primary" id="new-cron">New cron</button>
+    </div>
+    <div id="c-errors"></div>
+    <section class="group"><div class="grid" id="c-grid"></div></section>
+  </div>
+</main>
+
+<!-- ========================================================================= dialogs -->
+<dialog id="issue-dlg" class="big">
+  <div class="dhead"><span class="chip" id="issue-sev"></span><h3 id="issue-title"></h3><span class="chip" id="issue-status"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody" id="issue-body"></div>
+  <div class="dfoot" id="issue-foot"></div>
+</dialog>
+
+<dialog id="ask-dlg" class="small">
+  <form method="dialog" id="ask-form">
+    <div class="dhead"><h3 id="ask-title"></h3><button class="icon" type="button" data-close title="Close">✕</button></div>
+    <div class="dbody"><p class="note" id="ask-note"></p><div class="form" id="ask-fields"></div></div>
+    <div class="dfoot"><span class="err" id="ask-err"></span><button class="btn" type="button" data-close>Cancel</button><button class="btn primary" id="ask-ok" value="ok">OK</button></div>
+  </form>
+</dialog>
+
+<dialog id="cron-dlg" class="big">
+  <div class="dhead"><h3 id="cron-title"></h3><span class="chip" id="cron-src"></span><span class="chip" id="cron-role"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody" id="cron-body"></div>
+  <div class="dfoot"><span class="err" id="cron-err"></span>
+    <button class="btn danger" id="cron-delete">Delete</button><button class="btn" id="cron-edit">Edit</button><button class="btn" data-close>Close</button></div>
+</dialog>
+
+<dialog id="edit-dlg" class="big">
+  <div class="dhead"><h3 id="edit-title"></h3><span class="chip own">yours</span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="edit-note"></p>
+    <form class="form" id="edit-form" autocomplete="off">
+      <label>Name<input name="name" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="64" placeholder="e.g. my-watch"></label>
+      <label>Who may see it<select name="visibility"><option value="user">Only me</option><option value="organization">My organization</option><option value="all">Everyone (managers)</option></select></label>
+      <label>Status<select name="enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+      <span></span>
+      <label class="wide">CRON.md<textarea name="content" class="tall" spellcheck="false"></textarea></label>
+    </form>
+    <div class="dsec"><h4>Files</h4>
+      <p class="note" id="edit-files-note"></p>
+      <ul class="items" id="edit-files"></ul>
+      <div class="form" style="margin-top:10px">
+        <label class="wide">Path<input id="edit-file-path" maxlength="255" placeholder="checks/<check>.md or reports/<name>.md"></label>
+        <label class="wide">Content<textarea id="edit-file-content" spellcheck="false" style="min-height:200px"></textarea></label>
+        <div class="wide"><button class="btn" type="button" id="edit-file-new">New file</button>
+          <button class="btn danger" type="button" id="edit-file-delete" hidden>Delete file</button>
+          <button class="btn primary" type="button" id="edit-file-save">Save file</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="dfoot"><span class="err" id="edit-err"></span><button class="btn" data-close>Close</button><button class="btn primary" id="edit-save">Save</button></div>
+</dialog>
+
+<script>
+'use strict';
+// Relative URLs: works at /crons and under a prefix such as /app/crons. Everything from the server is
+// inserted as text; the only HTML built from server text is the Markdown fallback (md), which escapes first.
+
+// ======================================================================================== common
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const login = () => { location = 'auth/login?return_to=' + encodeURIComponent(location.pathname); };
+async function api(method, path, body) {
+  const r = await fetch(path, {method, headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
+  if (r.status === 401) { login(); throw new Error('signed out'); }
+  if (!r.ok) { let d = r.status; try { d = (await r.json()).detail || d; } catch (_) {} throw new Error(typeof d === 'string' ? d : JSON.stringify(d)); }
+  return r.status === 204 ? null : r.json();
+}
+function toast(text) { const t = el('div', 'toast', text); document.body.append(t); setTimeout(() => t.remove(), 2400); }
+const store = {get: k => { try { return localStorage.getItem(k); } catch (_) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} }};
+const me = {scopes: [], org: null, id: null};
+const isAdmin = () => me.scopes.includes('admin');
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const q = params => { const s = new URLSearchParams(); for (const [k, v] of Object.entries(params)) if (v !== '' && v != null && v !== false) s.set(k, v); const t = s.toString(); return t ? '?' + t : ''; };
+const cronUrl = id => 'api/v1/crons/' + encodeURIComponent(id);
+const pathUrl = path => path.split('/').map(encodeURIComponent).join('/');
+const safeUrl = u => typeof u === 'string' && /^https?:\/\//i.test(u) ? u : null;
+// The signed-in user as people know them: an email-only sign-up has no name, so fall back to the
+// username, then the email. The hover hint carries the full text the layout may truncate.
+const displayName = u => u.name || u.username || u.email || u.id || 'You';
+const whoHint = u => [displayName(u), u.email].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
+// Profile page (Logto Account Center, auth/session's account_url). The way back is a sign-in, silent while
+// the Logto session lasts, so this page then shows the name the user just changed.
+function showAccountLink(s) {
+  if (!/^https?:\/\//i.test(s.account_url || '')) return;
+  const back = new URL('auth/login?return_to=' + encodeURIComponent(location.pathname + location.search + location.hash), location.href);
+  $('account-link').href = `${s.account_url}/profile?redirect=${encodeURIComponent(back.href)}`;
+  $('account-link').hidden = false;
+}
+
+// times: the server speaks ISO UTC; people read their local time
+const date = v => v ? new Date(v) : null;
+const fmt = v => v ? new Date(v).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) : '';
+const fmtDay = v => v ? new Date(v).toLocaleDateString([], {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'}) : '';
+const fmtTime = v => v ? new Date(v).toLocaleTimeString([], {timeStyle: 'short'}) : '';
+function fmtRange(a, b) {
+  if (!a) return '';
+  if (!b) return fmt(a);
+  const da = new Date(a), db = new Date(b);
+  const sameDay = da.toDateString() === db.toDateString() || (db - da <= 864e5 && db.getHours() === 0 && db.getMinutes() === 0 && da.getHours() !== 0);
+  return sameDay ? `${fmtDay(a)}, ${fmtTime(a)} – ${fmtTime(b)}` : `${fmt(a)} – ${fmt(b)}`;
+}
+function fmtMinutes(m) {
+  if (m == null) return '–';
+  if (m < 60) return `${Math.round(m)} min`;
+  if (m < 60 * 48) return `${(m / 60).toFixed(m < 600 ? 1 : 0)} h`;
+  return `${(m / 1440).toFixed(1)} d`;
+}
+const toLocalInput = d => { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+const toIso = local => local ? new Date(local).toISOString() : null;
+const num = v => v == null || Number.isNaN(v) ? '' : (Math.abs(v) >= 1000 || Number.isInteger(v) ? String(Math.round(v * 100) / 100) : Number(v).toPrecision(3));
+const firstLine = s => (s || '').split('\n').map(l => l.trim()).find(Boolean) || '';
+
+// chips
+const SEV = {critical: 'bad', high: 'bad', error: 'bad', medium: 'warn', warning: 'warn', low: '', info: ''};
+function sevChip(sev, rank) {
+  const cls = sev in SEV ? SEV[sev] : rank === 0 ? 'bad' : rank === 1 ? 'warn' : '';
+  return el('span', 'chip ' + cls + (sev === 'critical' ? ' fill' : ''), sev || 'none');
+}
+const STATUS_CLS = {open: 'warn', acknowledged: '', in_progress: 'own', solved: 'ok', ignored: 'off', snoozed: 'lock',
+                    ok: 'ok', issues: 'warn', degraded: 'warn', unable: 'bad', failed: 'bad', running: 'own', finished: '',
+                    pending: 'warn', approved: 'ok', rejected: 'off', ready: 'ok'};
+const statusChip = s => el('span', 'chip ' + (STATUS_CLS[s] || ''), (s || '').replace(/_/g, ' '));
+const DONE = ['solved', 'ignored'];
+function linkIcons(links) {
+  const box = el('span');
+  (links || []).forEach((u, n) => {
+    const href = safeUrl(u); if (!href) return;
+    const a = el('a', 'lk', '↗' + (links.length > 1 ? n + 1 : '')); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.title = href;
+    a.onclick = e => e.stopPropagation();
+    box.append(a);
+  });
+  return box;
+}
+function section(title, items, render, emptyText) {
+  const s = el('div', 'dsec'); s.append(el('h4', '', title));
+  if (!items || !items.length) { if (emptyText == null) return null; s.append(el('div', 'note', emptyText)); return s; }
+  const ul = el('ul', 'items wide'); items.forEach(i => { const li = render(i); if (li) ul.append(li); }); s.append(ul);
+  return s;
+}
+function kvList(pairs) {
+  const kv = el('dl', 'kv');
+  for (const [k, v] of pairs) if (v != null && v !== '' && !(Array.isArray(v) && !v.length)) {
+    const dd = el('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = Array.isArray(v) ? v.join(', ') : String(v);
+    kv.append(el('dt', '', k), dd);
+  }
+  return kv;
+}
+function table(head, rows, numeric = []) {
+  const w = el('div', 'tw'), t = el('table', 't'), th = el('thead'), tr = el('tr');
+  head.forEach((h, i) => tr.append(el('th', numeric.includes(i) ? 'n' : '', h)));
+  th.append(tr); t.append(th);
+  const tb = el('tbody');
+  for (const r of rows) {
+    const row = el('tr');
+    r.forEach((c, i) => { const td = el('td', numeric.includes(i) ? 'n' : ''); if (c instanceof Node) td.append(c); else td.textContent = c == null ? '' : String(c); row.append(td); });
+    tb.append(row);
+  }
+  t.append(tb); w.append(t); return w;
+}
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast('Copied'); }
+  catch (_) { const a = el('textarea'); a.value = text; document.body.append(a); a.select(); try { document.execCommand('copy'); toast('Copied'); } catch (__) { toast('Copy failed'); } a.remove(); }
+}
+
+// Markdown (fallback when a report has no data): escape everything first, then add a few safe tags.
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]); }
+function mdInline(raw) {
+  return raw.split('`').map((part, i) => {
+    const e = esc(part);
+    if (i % 2) return '<code>' + e + '</code>';
+    return e.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  }).join('');
+}
+function md(text) {
+  const out = [], lines = String(text || '').split('\n');
+  let list = false, para = [];
+  const flush = () => { if (para.length) { out.push('<p>' + para.map(mdInline).join(' ') + '</p>'); para = []; } if (list) { out.push('</ul>'); list = false; } };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i], t = line.trim();
+    let m;
+    if (!t) { flush(); continue; }
+    if ((m = /^(#{1,6})\s+(.*)$/.exec(t))) { flush(); const n = Math.min(3, m[1].length); out.push(`<h${n}>${mdInline(m[2])}</h${n}>`); continue; }
+    if (t.startsWith('|')) {
+      flush();
+      const rows = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) { rows.push(lines[i].trim()); i++; }
+      i--;
+      const cells = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      let h = '<table>';
+      rows.forEach((r, n) => { if (/^\|[\s:|-]+\|?$/.test(r)) return; const tag = n === 0 ? 'th' : 'td'; h += '<tr>' + cells(r).map(c => `<${tag}>${mdInline(c)}</${tag}>`).join('') + '</tr>'; });
+      out.push(h + '</table>'); continue;
+    }
+    if ((m = /^(?:[-*]|\d+\.)\s+(.*)$/.exec(t))) {
+      if (para.length) { out.push('<p>' + para.map(mdInline).join(' ') + '</p>'); para = []; }
+      if (!list) { out.push('<ul>'); list = true; }
+      let body = m[1], box = '';
+      const b = /^\[( |x|X)\]\s+(.*)$/.exec(body);
+      if (b) { box = b[1] === ' ' ? '☐ ' : '☑ '; body = b[2]; }
+      out.push('<li>' + box + mdInline(body) + '</li>'); continue;
+    }
+    if (list) { out.push('</ul>'); list = false; }
+    para.push(t);
+  }
+  flush();
+  const d = el('div', 'md'); d.innerHTML = out.join('');   // every piece above went through esc()
+  return d;
+}
+
+// theme (shared with the chat page)
+function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+applyTheme(store.get('theme'));
+$('theme').onclick = () => {
+  const dark = (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+  const next = dark ? 'light' : 'dark'; applyTheme(next); store.set('theme', next);
+};
+document.querySelectorAll('dialog [data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+
+// ask: a small form in a dialog; resolves to {name: value} or null
+function ask(title, fields, {note = '', ok = 'OK'} = {}) {
+  return new Promise(resolve => {
+    const dlg = $('ask-dlg'), box = $('ask-fields'); box.textContent = '';
+    $('ask-title').textContent = title; $('ask-note').textContent = note; $('ask-note').hidden = !note; $('ask-err').textContent = ''; $('ask-ok').textContent = ok;
+    const inputs = {};
+    for (const f of fields) {
+      const lab = el('label', f.type === 'checkbox' ? 'inline wide' : 'wide');
+      let input;
+      if (f.type === 'textarea') { input = el('textarea'); input.style.minHeight = '90px'; }
+      else { input = el('input'); input.type = f.type || 'text'; }
+      if (f.type === 'checkbox') { input.checked = !!f.value; lab.append(input, document.createTextNode(f.label)); }
+      else { if (f.value != null) input.value = f.value; if (f.placeholder) input.placeholder = f.placeholder; lab.append(document.createTextNode(f.label + (f.required ? '' : ' (optional)')), input); }
+      inputs[f.name] = input; box.append(lab);
+    }
+    let done = false;
+    const finish = v => { if (done) return; done = true; dlg.onclose = null; $('ask-form').onsubmit = null; resolve(v); };
+    $('ask-form').onsubmit = e => {
+      e.preventDefault();
+      const out = {};
+      for (const f of fields) {
+        const i = inputs[f.name];
+        out[f.name] = f.type === 'checkbox' ? i.checked : i.value.trim();
+        if (f.required && !out[f.name]) { $('ask-err').textContent = `${f.label} is required`; i.focus(); return; }
+      }
+      finish(out); dlg.close();
+    };
+    dlg.onclose = () => finish(null);
+    dlg.showModal();
+    const first = box.querySelector('input,textarea'); if (first) first.focus();
+  });
+}
+
+// ======================================================================================== crons (shared state)
+const S = {crons: [], byId: {}, canAdd: false, errors: {}};
+const roleOf = id => (S.byId[id] || {}).role || 'read';
+const canOp = id => roleOf(id) === 'operate';
+const canView = id => roleOf(id) !== 'read';
+const cronName = id => (S.byId[id] || {}).qualified || (S.byId[id] || {}).name || id;
+async function loadCronList() {
+  const data = await api('GET', 'api/v1/crons');
+  S.crons = data.crons; S.canAdd = data.can_add; S.errors = data.errors || {};
+  S.byId = Object.fromEntries(S.crons.map(c => [c.id, c]));
+  fillCronSelects();
+}
+function setOptions(select, options, keepFirst = true) {
+  const v = select.value;
+  while (select.options.length > (keepFirst ? 1 : 0)) select.remove(keepFirst ? 1 : 0);
+  for (const [value, label] of options) { const o = el('option', '', label); o.value = value; select.append(o); }
+  if ([...select.options].some(o => o.value === v)) select.value = v;
+}
+function fillCronSelects() {
+  const all = S.crons.map(c => [c.id, c.qualified || c.name]);
+  setOptions($('b-cron'), all); setOptions($('r-cron'), all);
+  setOptions($('r-new').cron, S.crons.filter(c => c.role !== 'read').map(c => [c.id, c.qualified || c.name]), false);
+  $('r-new-box').hidden = !S.crons.some(c => c.role !== 'read');
+  boardCheckOptions();
+  const kinds = new Set(['custom']);
+  S.crons.forEach(c => { (c.periods || []).forEach(k => kinds.add(k)); (c.rollups || []).forEach(k => kinds.add(k)); });
+  setOptions($('r-kind'), [...kinds].sort().map(k => [k, k]));
+}
+
+// ======================================================================================== tabs
+const VIEWS = {board: () => loadBoard(), reports: () => loadReports(), crons: () => loadCronsView()};
+let currentTab = 'board';
+function show(tab, sub) {
+  currentTab = tab;
+  if (tab === 'reports' && !sub && R.openId) sub = encodeURIComponent(R.openId);
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
+  for (const v of Object.keys(VIEWS)) $('view-' + v).hidden = tab !== v;
+  history.replaceState(null, '', '#' + tab + (sub ? '/' + sub : ''));
+  const p = VIEWS[tab]();
+  if (tab === 'reports' && sub) p.then(() => openReport(decodeURIComponent(sub)));
+  p.catch(e => toast(e.message));
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => show(t.dataset.tab));
+
+// ======================================================================================== issue actions
+const ACTIONS = {
+  acknowledge: {label: 'Acknowledge'},
+  take: {label: "I'm on it"},
+  solve: {label: 'Solved'},
+  snooze: {label: 'Snooze', fields: () => [{name: 'until', label: 'Until', type: 'datetime-local', required: true, value: toLocalInput(new Date(Date.now() + 4 * 3600e3))},
+                                          {name: 'comment', label: 'Comment', type: 'textarea'}]},
+  ignore: {label: "Won't follow", note: 'The issue is no longer followed; it comes back as new if it is seen again after the date, if any.',
+           fields: () => [{name: 'comment', label: 'Reason', type: 'textarea', required: true}, {name: 'until', label: 'Until', type: 'datetime-local'}]},
+  comment: {label: 'Comment', fields: () => [{name: 'comment', label: 'Comment', type: 'textarea', required: true}]},
+  reopen: {label: 'Reopen'},
+};
+async function act(ids, action, extra = {}) {
+  const body = {action, ...extra};
+  if (ids.length === 1) return api('POST', `api/v1/issues/${encodeURIComponent(ids[0])}/actions`, body);
+  return api('POST', 'api/v1/issues/actions', {ids, ...body});
+}
+// asks what the action needs, then does it; true when done
+async function runAction(ids, action) {
+  const spec = ACTIONS[action] || {label: action};
+  let extra = {};
+  if (spec.fields) {
+    const v = await ask(`${spec.label}: ${ids.length === 1 ? '1 issue' : ids.length + ' issues'}`, spec.fields(), {note: spec.note || '', ok: spec.label});
+    if (!v) return false;
+    if (v.comment) extra.comment = v.comment;
+    if (v.until) extra.until = toIso(v.until);
+  }
+  try { await act(ids, action, extra); toast(`${spec.label}: ${ids.length === 1 ? 'done' : ids.length + ' issues'}`); return true; }
+  catch (e) { toast(e.message); return false; }
+}
+const refreshAfterAction = debounce(() => { if (currentTab === 'board') loadBoard().catch(e => toast(e.message)); }, 150);
+
+// ======================================================================================== board
+const STATUSES = ['open', 'acknowledged', 'in_progress', 'snoozed', 'solved', 'ignored'];
+const DEFAULT_STATUSES = ['open', 'acknowledged', 'in_progress', 'snoozed'];
+(() => {
+  const box = $('b-status');
+  for (const s of STATUSES) {
+    const lab = el('label'), cb = el('input'); cb.type = 'checkbox'; cb.value = s; cb.checked = DEFAULT_STATUSES.includes(s);
+    cb.onchange = () => loadBoard().catch(e => toast(e.message));
+    lab.append(cb, document.createTextNode(s.replace('_', ' '))); box.append(lab);
+  }
+})();
+function boardCheckOptions() {
+  const cron = $('b-cron').value, crons = cron ? [S.byId[cron]].filter(Boolean) : S.crons;
+  const checks = new Set(), sevs = new Set();
+  crons.forEach(c => c.checks.forEach(k => { checks.add(k.name); (k.severities || []).forEach(s => sevs.add(s)); }));
+  setOptions($('b-check'), [...checks].sort().map(n => [n, n]));
+  setOptions($('b-severity'), [...sevs].map(n => [n, n]));
+}
+const selected = new Set();
+let boardIssues = {};
+async function loadBoard() {
+  if (!S.crons.length) await loadCronList();
+  const statuses = [...$('b-status').querySelectorAll('input:checked')].map(i => i.value);
+  const data = await api('GET', 'api/v1/issues' + q({cron: $('b-cron').value, site: $('b-site').value.trim(), check: $('b-check').value,
+    severity: $('b-severity').value, status: statuses.join(',') || DEFAULT_STATUSES.join(','), recurring: $('b-recurring').checked && 'true',
+    related: $('b-related').checked && 'true', group: 'site'}));
+  boardIssues = {};
+  data.sites.forEach(s => s.issues.forEach(i => { boardIssues[i.id] = i; }));
+  for (const id of [...selected]) if (!boardIssues[id] || !canOp(boardIssues[id].cron_id)) selected.delete(id);
+  const box = $('b-sites'); box.textContent = '';
+  if (!data.sites.length) box.append(el('div', 'empty', S.crons.length ? 'No issue matches. All quiet.' : 'You may not see any cron yet.'));
+  if (data.truncated) box.append(el('div', 'empty', 'Showing the 500 most severe issues: narrow the filters to see the rest.'));
+  data.sites.forEach(s => box.append(siteSection(s)));
+  updateBulk();
+  renderSuppressionBoxes();
+}
+function siteSection(s) {
+  const sec = el('div', 'site'), head = el('div', 'shead');
+  head.append(el('h3', '', s.site || '(no site)'));
+  if (s.worst) head.append(sevChip(s.worst, s.worst_rank));
+  head.append(el('span', 'd', `${s.issues.length} issue${s.issues.length === 1 ? '' : 's'} · since ${fmt(s.since)}`), el('span', 'spacer'));
+  const ops = s.issues.filter(i => canOp(i.cron_id));
+  if (ops.length) {
+    const ackIds = ops.filter(i => i.status === 'open').map(i => i.id);
+    const ack = el('button', 'btn sm', 'Acknowledge all'); ack.disabled = !ackIds.length;
+    ack.onclick = async () => { if (await runAction(ackIds, 'acknowledge')) refreshAfterAction(); };
+    const snIds = ops.filter(i => !DONE.includes(i.status)).map(i => i.id);
+    const sn = el('button', 'btn sm', 'Snooze all'); sn.disabled = !snIds.length;
+    sn.onclick = async () => { if (await runAction(snIds, 'snooze')) refreshAfterAction(); };
+    head.append(ack, sn);
+  }
+  const ul = el('ul', 'items');
+  s.issues.forEach(i => ul.append(issueRow(i)));
+  sec.append(head, ul);
+  return sec;
+}
+function issueRow(i) {
+  const li = el('li', 'irow' + (DONE.includes(i.status) ? ' done' : ''));
+  if (canOp(i.cron_id)) {
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = selected.has(i.id); cb.title = 'Select';
+    cb.onchange = () => { if (cb.checked) selected.add(i.id); else selected.delete(i.id); updateBulk(); };
+    li.append(cb);
+  }
+  const body = el('div', 'body'), row = el('div', 'row');
+  const title = el('button', 'title', i.title); title.onclick = () => openIssue(i.id);
+  row.append(sevChip(i.severity, i.severity_rank), title, linkIcons(i.links));
+  const meta = el('div', 'row');
+  meta.append(el('span', 'chip', i.check_name), statusChip(i.status));
+  if (i.status === 'snoozed' && i.until) meta.append(el('span', 'chip lock', 'until ' + fmt(i.until)));
+  if (i.reopened) meta.append(el('span', 'chip warn', `recurring ×${i.reopened}`));
+  if ((i.related || []).length) meta.append(el('span', 'chip', `${i.related.length} related`));
+  if (i.owner) meta.append(el('span', 'chip own', i.owner));
+  if (i.ticket) meta.append(el('span', 'chip', 'ticket ' + i.ticket));
+  if (!$('b-cron').value && S.crons.length > 1) meta.append(el('span', 'chip lock', cronName(i.cron_id)));
+  meta.append(el('span', 'd', `since ${fmt(i.first_seen)} · last seen ${fmt(i.last_seen)} · ${i.occurrences}×`));
+  if (canOp(i.cron_id)) {
+    const sup = el('button', 'btn sm', 'Won’t follow anything like this'); sup.onclick = () => openSuppress(i);
+    meta.append(sup);
+  }
+  body.append(row, meta); li.append(body);
+  return li;
+}
+function updateBulk() {
+  $('bulk').hidden = !selected.size;
+  $('bulk-n').textContent = `${selected.size} selected`;
+}
+document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = async () => {
+  const ids = [...selected];
+  if (!ids.length) return;
+  if (await runAction(ids, b.dataset.bulk)) { selected.clear(); refreshAfterAction(); }
+});
+$('bulk-clear').onclick = () => { selected.clear(); loadBoard().catch(e => toast(e.message)); };
+const boardReload = debounce(() => loadBoard().catch(e => toast(e.message)), 300);
+$('b-cron').onchange = () => { boardCheckOptions(); boardReload(); };
+for (const id of ['b-check', 'b-severity', 'b-recurring', 'b-related']) $(id).onchange = boardReload;
+$('b-site').oninput = boardReload;
+$('b-refresh').onclick = () => loadBoard().catch(e => toast(e.message));
+
+// suppressions ("won't follow anything like this")
+async function openSuppress(issue) {
+  const key = issue.key || {};
+  const fields = [{name: '__check', label: `Only for the check ${issue.check_name}`, type: 'checkbox', value: true}];
+  Object.entries(key).forEach(([k, v]) => fields.push({name: 'k:' + k, label: `${k} = ${v}`, type: 'checkbox', value: true}));
+  fields.push({name: 'reason', label: 'Reason', type: 'textarea', required: true}, {name: 'until', label: 'Until', type: 'datetime-local'});
+  for (;;) {
+    const v = await ask("Won't follow anything like this", fields, {note: 'Findings matching every ticked field are no longer followed as issues. Untick fields to widen the rule.', ok: 'Add rule'});
+    if (!v) return;
+    const match = {};
+    Object.entries(key).forEach(([k, val]) => { if (v['k:' + k]) match[k] = String(val); });
+    fields.forEach(f => { if (f.type === 'checkbox') f.value = v[f.name]; else f.value = v[f.name]; });
+    if (!Object.keys(match).length) { toast('Tick at least one key field'); continue; }
+    try {
+      await api('POST', cronUrl(issue.cron_id) + '/suppressions', {check: v.__check ? issue.check_name : null, match, reason: v.reason, until: toIso(v.until)});
+      toast('Rule added'); renderSuppressionBoxes(); return;
+    } catch (e) { toast(e.message); return; }
+  }
+}
+function renderSuppressionBoxes() {
+  const box = $('b-supps'), open = new Set([...box.querySelectorAll('details[open]')].map(d => d.dataset.cron));
+  box.textContent = '';
+  const crons = $('b-cron').value ? [S.byId[$('b-cron').value]].filter(Boolean) : S.crons;
+  if (!crons.length) { box.append(el('div', 'empty', 'No cron.')); return; }
+  for (const c of crons) {
+    const d = el('details', 'box'); d.dataset.cron = c.id;
+    const inner = el('div');
+    d.append(el('summary', '', c.qualified || c.name), inner);
+    d.ontoggle = () => { if (d.open) loadSuppressions(c.id, inner); };
+    if (open.has(c.id)) { d.open = true; }
+    box.append(d);
+  }
+}
+async function loadSuppressions(cronId, box) {
+  box.textContent = '';
+  let rows;
+  try { rows = (await api('GET', cronUrl(cronId) + '/suppressions')).suppressions; } catch (e) { box.append(el('div', 'note', e.message)); return; }
+  if (!rows.length) { box.append(el('div', 'note', 'No rules.')); return; }
+  const ul = el('ul', 'items');
+  for (const s of rows) {
+    const li = el('li'), row = el('div', 'row split'), left = el('span');
+    left.append(el('code', '', Object.entries(s.match_keys || {}).map(([k, v]) => `${k}=${v}`).join(', ')));
+    if (s.check_name) left.append(document.createTextNode(' '), el('span', 'chip', s.check_name));
+    row.append(left);
+    if (canOp(cronId)) {
+      const del = el('button', 'btn sm danger', 'Delete');
+      del.onclick = async () => {
+        if (!confirm('Delete this rule? Matching findings are followed as issues again.')) return;
+        try { await api('DELETE', `${cronUrl(cronId)}/suppressions/${encodeURIComponent(s.id)}`); toast('Deleted'); loadSuppressions(cronId, box); } catch (e) { toast(e.message); }
+      };
+      row.append(del);
+    }
+    li.append(row, el('span', 'd', [s.reason, 'by ' + s.actor, fmt(s.created_at), s.until ? 'until ' + fmt(s.until) : 'no end'].filter(Boolean).join(' · ')));
+    ul.append(li);
+  }
+  box.append(ul);
+}
+
+// the issue dialog
+let openIssueId = null;
+async function openIssue(id) {
+  let i;
+  try { i = await api('GET', 'api/v1/issues/' + encodeURIComponent(id)); } catch (e) { toast(e.message); return; }
+  openIssueId = id;
+  const op = i.can_operate;
+  const sev = $('issue-sev'); sev.replaceWith(Object.assign(sevChip(i.severity, i.severity_rank), {id: 'issue-sev'}));
+  $('issue-title').textContent = i.title;
+  const st = $('issue-status'); st.replaceWith(Object.assign(statusChip(i.status), {id: 'issue-status'}));
+  const body = $('issue-body'); body.textContent = '';
+  body.append(kvList([['Cron', cronName(i.cron_id)], ['Check', i.check_name], ['Site', i.grp], ['First seen', fmt(i.first_seen)],
+    ['Last seen', fmt(i.last_seen)], ['Seen', `${i.occurrences}×` + (i.missed ? `, missed ${i.missed} run(s)` : '')],
+    ['Reopened', i.reopened ? `${i.reopened}×` : ''], ['Until', fmt(i.until)], ['Solved', i.solved_at ? `${fmt(i.solved_at)} by ${i.solved_by || '?'}` : ''],
+    ['Owner', i.owner], ['Ticket', i.ticket], ['Id', i.id]]));
+  const keys = Object.entries(i.key || {});
+  if (keys.length) { const s = el('div', 'dsec'); s.append(el('h4', '', 'Key')); const r = el('div', 'row'); r.style.display = 'flex'; r.style.gap = '6px'; r.style.flexWrap = 'wrap';
+    keys.forEach(([k, v]) => r.append(el('span', 'chip', `${k} = ${v}`))); s.append(r); body.append(s); }
+  if (i.details) { const s = el('div', 'dsec'); s.append(el('h4', '', 'Details'), el('pre', 'pre', i.details)); body.append(s); }
+  const links = (i.links || []).map(safeUrl).filter(Boolean);
+  if (links.length) body.append(section('Links', links, u => { const li = el('li'), a = el('a', '', u); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; li.append(a); return li; }));
+  // ticket
+  const tk = el('div', 'dsec'); tk.append(el('h4', '', 'Ticket'));
+  if (i.draft_ticket) {
+    const r = el('div', 'toolbar'); const c = el('button', 'btn sm', 'Copy draft'); c.onclick = () => copy(i.draft_ticket);
+    r.append(el('span', 'note', 'Draft written by the agent, for you to file:'), c); tk.append(r, el('pre', 'pre', i.draft_ticket));
+  }
+  if (op) {
+    const r = el('div', 'toolbar'); r.style.marginTop = '8px';
+    const inp = el('input'); inp.type = 'text'; inp.placeholder = 'Ticket id or URL'; inp.value = i.ticket || '';
+    const b = el('button', 'btn sm', 'Save ticket');
+    b.onclick = async () => { if (!inp.value.trim()) return; try { await act([i.id], 'ticket', {ticket: inp.value.trim()}); toast('Ticket saved'); openIssue(i.id); refreshAfterAction(); } catch (e) { toast(e.message); } };
+    r.append(inp, b); tk.append(r);
+  } else if (!i.draft_ticket) tk.append(el('div', 'note', i.ticket || 'None.'));
+  body.append(tk);
+  // notes
+  body.append(section('Notes', i.notes || [], n => { const li = el('li'); li.append(el('span', '', n.text), el('span', 'd', `${n.by} · ${fmt(n.at)}`)); return li; }, 'None.'));
+  // related
+  const rel = section('Related issues', i.related || [], rid => {
+    const li = el('li'), row = el('div', 'row split'), a = el('button', 'title', boardIssues[rid] ? boardIssues[rid].title : rid);
+    a.onclick = () => openIssue(rid); row.append(a);
+    if (op) { const u = el('button', 'btn sm', 'Unrelate'); u.onclick = async () => { try { await act([i.id], 'unrelate', {related: rid}); openIssue(i.id); } catch (e) { toast(e.message); } }; row.append(u); }
+    li.append(row); return li;
+  }, op ? '' : 'None.');
+  if (op) {
+    const r = el('div', 'toolbar'); r.style.marginTop = '8px';
+    const inp = el('input'); inp.type = 'text'; inp.placeholder = 'Another issue id';
+    const b = el('button', 'btn sm', 'Relate');
+    b.onclick = async () => { if (!inp.value.trim()) return; try { await act([i.id], 'relate', {related: inp.value.trim()}); openIssue(i.id); } catch (e) { toast(e.message); } };
+    r.append(inp, b); rel.append(r);
+  }
+  body.append(rel);
+  // proposals
+  const props = section('Proposed actions', i.proposals || [], p => proposalItem(p, op, () => openIssue(i.id)));
+  if (props) body.append(props);
+  // events
+  const ev = el('div', 'dsec'); ev.append(el('h4', '', 'History'));
+  const tl = el('ul', 'tl');
+  for (const e of i.events || []) {
+    const li = el('li');
+    const what = e.action + (e.from_status && e.to_status && e.from_status !== e.to_status ? ` (${e.from_status} → ${e.to_status})` : '');
+    li.append(el('div', '', `${e.actor}: ${what.replace(/_/g, ' ')}`));
+    if (e.comment) li.append(el('div', 'note', e.comment));
+    if (e.data && Object.keys(e.data).length) li.append(el('div', 'when', Object.entries(e.data).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')));
+    li.append(el('div', 'when', fmt(e.at)));
+    tl.append(li);
+  }
+  if (!(i.events || []).length) tl.append(el('li', 'note', 'Nothing yet.'));
+  ev.append(tl); body.append(ev);
+  // findings
+  body.append(section('Recent findings', i.findings || [], f => {
+    const li = el('li'), row = el('div', 'row'); row.append(sevChip(f.severity, f.severity_rank), el('span', '', f.title), linkIcons(f.links));
+    li.append(row, el('span', 'd', fmt(f.at)));
+    if (f.details) { const p = el('pre', 'pre', f.details); p.style.marginTop = '4px'; li.append(p); }
+    return li;
+  }, 'None.'));
+  // actions
+  const foot = $('issue-foot'); foot.textContent = '';
+  foot.append(el('span', 'err'));
+  if (op) {
+    const acts = DONE.includes(i.status) || i.status === 'snoozed' ? ['reopen', 'comment'] : ['acknowledge', 'take', 'solve', 'snooze', 'ignore', 'comment'];
+    for (const a of acts) {
+      if (a === 'acknowledge' && i.status !== 'open') continue;
+      const b = el('button', 'btn' + (a === 'solve' ? ' primary' : ''), ACTIONS[a].label);
+      b.onclick = async () => { if (await runAction([i.id], a)) { openIssue(i.id); refreshAfterAction(); } };
+      foot.append(b);
+    }
+    const sup = el('button', 'btn', 'Won’t follow anything like this'); sup.onclick = () => openSuppress(i); foot.append(sup);
+  }
+  const close = el('button', 'btn', 'Close'); close.onclick = () => $('issue-dlg').close(); foot.append(close);
+  if (!$('issue-dlg').open) $('issue-dlg').showModal();
+}
+$('issue-dlg').addEventListener('close', () => { openIssueId = null; });
+function proposalItem(p, op, after) {
+  const li = el('li'), row = el('div', 'row');
+  row.append(el('code', '', p.tool), statusChip(p.status));
+  if (p.decided_by) row.append(el('span', 'd', 'by ' + p.decided_by));
+  li.append(row);
+  if (p.reason) li.append(el('span', 'd', p.reason));
+  if (p.arguments && Object.keys(p.arguments).length) li.append(el('pre', 'pre', JSON.stringify(p.arguments, null, 1)));
+  if (p.result != null) { li.append(el('span', 'd', 'Result:'), el('pre', 'pre', typeof p.result === 'string' ? p.result : JSON.stringify(p.result, null, 1))); }
+  if (op && p.status === 'pending') {
+    const r = el('div', 'row');
+    const decide = async approve => {
+      const v = await ask(approve ? `Approve ${p.tool}` : `Reject ${p.tool}`, [{name: 'comment', label: 'Comment', type: 'textarea'}],
+                          {note: approve ? 'The action runs now, as you, under the normal policy.' : '', ok: approve ? 'Approve' : 'Reject'});
+      if (!v) return;
+      try {
+        const res = await api('POST', `api/v1/proposals/${encodeURIComponent(p.id)}/decision`, {approve, comment: v.comment});
+        toast(`${p.tool}: ${res.status}`);
+        if (after) after();
+      } catch (e) { toast(e.message); }
+    };
+    const a = el('button', 'btn sm primary', 'Approve'); a.onclick = () => decide(true);
+    const j = el('button', 'btn sm', 'Reject'); j.onclick = () => decide(false);
+    r.append(a, j); li.append(r);
+  }
+  return li;
+}
+
+// ======================================================================================== charts (inline SVG)
+const SVGNS = 'http://www.w3.org/2000/svg';
+const sv = (tag, attrs = {}, style) => { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (style) e.setAttribute('style', style); return e; };
+const color = n => `var(--s${(n % 8) + 1})`;
+function niceTicks(lo, hi, n = 4) {
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw);
+  const out = []; for (let v = Math.floor(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(+v.toPrecision(12));
+  return out;
+}
+function legend(items) {
+  const l = el('div', 'legend');
+  items.forEach(([label, c]) => { const s = el('span'), i = el('i'); i.style.background = c; s.append(i, document.createTextNode(label)); l.append(s); });
+  return l;
+}
+// series: [{label, points: [{t: ms, v, min, max, link, tip}]}]
+function lineChart(title, series, {unit = '', band = true} = {}) {
+  const box = el('div', 'chart'); if (title) box.append(el('div', 'ct', title));
+  const pts = series.flatMap(s => s.points).filter(p => p.v != null);
+  if (!pts.length) { box.append(el('div', 'note', 'No values in this range.')); return box; }
+  const W = 640, H = 210, L = 46, R = 10, T = 8, B = 24;
+  let x0 = Math.min(...pts.map(p => p.t)), x1 = Math.max(...pts.map(p => p.t));
+  if (x0 === x1) { x0 -= 3600e3; x1 += 3600e3; }
+  const showBand = band && series.length <= 3;
+  const lows = pts.map(p => showBand && p.min != null ? p.min : p.v), highs = pts.map(p => showBand && p.max != null ? p.max : p.v);
+  const ticks = niceTicks(Math.min(0, ...lows), Math.max(...highs));
+  const y0 = ticks[0], y1 = ticks[ticks.length - 1];
+  const X = t => L + (t - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (v - y0) / ((y1 - y0) || 1)) * (H - T - B);
+  const svg = sv('svg', {viewBox: `0 0 ${W} ${H}`, class: 'plot', role: 'img', 'aria-label': title || 'chart'});
+  for (const tv of ticks) { svg.append(sv('line', {x1: L, x2: W - R, y1: Y(tv), y2: Y(tv), class: 'grid'})); const tx = sv('text', {x: L - 6, y: Y(tv) + 4, 'text-anchor': 'end'}); tx.textContent = num(tv); svg.append(tx); }
+  const span = x1 - x0, short = span <= 2 * 864e5;
+  for (const f of [0, 0.5, 1]) {
+    const t = x0 + f * span, tx = sv('text', {x: X(t), y: H - 6, 'text-anchor': f === 0 ? 'start' : f === 1 ? 'end' : 'middle'});
+    tx.textContent = short ? new Date(t).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : new Date(t).toLocaleDateString([], {month: 'short', day: 'numeric'});
+    svg.append(tx);
+  }
+  series.forEach((s, n) => {
+    const p = s.points.filter(x => x.v != null).sort((a, b) => a.t - b.t); if (!p.length) return;
+    const c = color(n);
+    if (showBand && p.some(x => x.min != null && x.max != null && x.min !== x.max)) {
+      const up = p.map(x => `${X(x.t)},${Y(x.max ?? x.v)}`), down = p.slice().reverse().map(x => `${X(x.t)},${Y(x.min ?? x.v)}`);
+      svg.append(sv('polygon', {points: up.concat(down).join(' ')}, `fill:${c};opacity:.14`));
+    }
+    svg.append(sv('polyline', {points: p.map(x => `${X(x.t)},${Y(x.v)}`).join(' ')}, `fill:none;stroke:${c};stroke-width:2;stroke-linejoin:round;stroke-linecap:round`));
+    for (const x of p) {
+      svg.append(sv('circle', {cx: X(x.t), cy: Y(x.v), r: p.length > 60 ? 1.5 : 3}, `fill:${c};stroke:var(--bg);stroke-width:1`));
+      const hit = sv('circle', {cx: X(x.t), cy: Y(x.v), r: 8, class: 'hit'});
+      const tip = sv('title'); tip.textContent = `${s.label}\n${fmt(x.t)}\n${num(x.v)}${unit ? ' ' + unit : ''}` + (x.min != null ? `  (min ${num(x.min)}, max ${num(x.max)})` : '') + (x.tip ? '\n' + x.tip : '') + (x.link ? '\nclick: open the source' : '');
+      hit.append(tip);
+      const href = safeUrl(x.link); if (href) hit.addEventListener('click', () => window.open(href, '_blank', 'noopener'));
+      svg.append(hit);
+    }
+  });
+  box.append(svg);
+  if (series.length > 1) box.append(legend(series.map((s, n) => [s.label, color(n)])));
+  return box;
+}
+function barChart(title, labels, groups) {   // groups: [{label, values: [..], color}]
+  const box = el('div', 'chart'); if (title) box.append(el('div', 'ct', title));
+  const W = 640, H = 180, L = 34, R = 6, T = 8, B = 22;
+  const ticks = niceTicks(0, Math.max(1, ...groups.flatMap(g => g.values)));
+  const top = ticks[ticks.length - 1], Y = v => T + (1 - v / top) * (H - T - B);
+  const svg = sv('svg', {viewBox: `0 0 ${W} ${H}`, class: 'plot', role: 'img', 'aria-label': title});
+  for (const tv of ticks) { svg.append(sv('line', {x1: L, x2: W - R, y1: Y(tv), y2: Y(tv), class: 'grid'})); const tx = sv('text', {x: L - 5, y: Y(tv) + 4, 'text-anchor': 'end'}); tx.textContent = num(tv); svg.append(tx); }
+  const slot = (W - L - R) / Math.max(1, labels.length), bw = Math.max(2, Math.min(16, (slot - 4) / groups.length - 2));
+  labels.forEach((lab, n) => {
+    const x = L + n * slot + (slot - groups.length * (bw + 2)) / 2;
+    groups.forEach((g, k) => {
+      const v = g.values[n] || 0, h = Y(0) - Y(v);
+      const r = sv('rect', {x: x + k * (bw + 2), y: Y(v), width: bw, height: Math.max(0, h), rx: Math.min(2, bw / 2)}, `fill:${g.color}`);
+      const tip = sv('title'); tip.textContent = `${lab}: ${g.label} ${v}`; r.append(tip); svg.append(r);
+    });
+    const every = Math.ceil(labels.length / 10);
+    if (n % every === 0) { const tx = sv('text', {x: L + n * slot + slot / 2, y: H - 6, 'text-anchor': 'middle'}); tx.textContent = lab.slice(5); svg.append(tx); }
+  });
+  box.append(svg, legend(groups.map(g => [g.label, g.color])));
+  return box;
+}
+// metric rows ({name, labels, bucket, mean, min, max, links, unit}) → charts per name, ≤ 8 series each
+function metricCharts(rows, {band = true} = {}) {
+  const byName = new Map();
+  for (const r of rows) {
+    if (!byName.has(r.name)) byName.set(r.name, new Map());
+    const key = Object.entries(r.labels || {}).sort().map(([k, v]) => `${k}=${v}`).join(', ') || r.group || r.name;
+    const m = byName.get(r.name);
+    if (!m.has(key)) m.set(key, {label: key, unit: r.unit, points: []});
+    m.get(key).points.push({t: Date.parse(r.bucket), v: r.mean, min: r.min, max: r.max, link: (r.links || [])[0], tip: r.count != null ? `${r.count} value(s), last ${num(r.last)}` : ''});
+  }
+  const out = [];
+  for (const [name, m] of byName) {
+    const all = [...m.values()].sort((a, b) => Math.max(...b.points.map(p => p.v ?? -Infinity)) - Math.max(...a.points.map(p => p.v ?? -Infinity)));
+    const shown = all.slice(0, 8);
+    const c = lineChart(name + (shown[0].unit ? ` (${shown[0].unit})` : ''), shown, {unit: shown[0].unit, band});
+    if (all.length > 8) c.append(el('div', 'note', `${all.length - 8} more series not shown (the 8 with the highest values are); filter by site to see others.`));
+    out.push(c);
+  }
+  return out;
+}
+
+// ======================================================================================== reports
+const R = {year: null, month: null, day: null, offset: 0, list: [], total: 0, openId: null};
+const PAGE = 50;
+const MONTHS = [...Array(12)].map((_, n) => new Date(2000, n, 1).toLocaleDateString([], {month: 'long'}));
+const reportFilters = () => ({cron: $('r-cron').value, kind: $('r-kind').value, site: $('r-site').value.trim(), q: $('r-q').value.trim()});
+async function loadReports(more) {
+  if (!S.crons.length) await loadCronList();
+  const f = reportFilters();
+  if (!more) {
+    R.offset = 0;
+    const all = await api('GET', 'api/v1/reports' + q({...f, limit: 500}));
+    renderTree(all.reports, all.total);
+  }
+  const page = await api('GET', 'api/v1/reports' + q({...f, year: R.year, month: R.month, day: R.day, limit: PAGE, offset: more ? R.list.length : 0}));
+  R.list = more ? R.list.concat(page.reports) : page.reports; R.total = page.total;
+  renderReportList();
+}
+function renderTree(reports, total) {
+  const tree = {};
+  for (const r of reports) { const y = tree[r.year] ||= {n: 0, m: {}}; y.n++; const m = y.m[r.month] ||= {n: 0, d: {}}; m.n++; m.d[r.day] = (m.d[r.day] || 0) + 1; }
+  const nav = $('r-tree'); nav.textContent = '';
+  const item = (label, count, cls, on, pick) => { const b = el('button', cls + (on ? ' on' : '')); b.append(el('span', '', label), el('span', 'c', String(count))); b.onclick = pick; nav.append(b); };
+  item('All', total, '', !R.year, () => pickDate(null, null, null));
+  for (const y of Object.keys(tree).sort((a, b) => b - a)) {
+    item(y, tree[y].n, '', +y === R.year && !R.month, () => pickDate(+y, null, null));
+    if (+y !== R.year) continue;
+    for (const m of Object.keys(tree[y].m).sort((a, b) => b - a)) {
+      item(MONTHS[m - 1], tree[y].m[m].n, 'l1', +m === R.month && !R.day, () => pickDate(+y, +m, null));
+      if (+m !== R.month) continue;
+      for (const d of Object.keys(tree[y].m[m].d).sort((a, b) => b - a)) {
+        const label = new Date(+y, m - 1, +d).toLocaleDateString([], {weekday: 'short', day: 'numeric'});
+        item(label, tree[y].m[m].d[d], 'l2', +d === R.day, () => pickDate(+y, +m, +d));
+      }
+    }
+  }
+  if (reports.length < total) nav.append(el('div', 'note', `Dates of the newest ${reports.length}.`));
+}
+function pickDate(y, m, d) { R.year = y; R.month = m; R.day = d; closeReport(); loadReports().catch(e => toast(e.message)); }
+function renderReportList() {
+  $('r-list-title').textContent = R.day ? new Date(R.year, R.month - 1, R.day).toLocaleDateString([], {dateStyle: 'full'})
+    : R.month ? `${MONTHS[R.month - 1]} ${R.year}` : R.year ? String(R.year) : 'All reports';
+  $('r-count').textContent = R.total ? String(R.total) : '';
+  $('r-more').hidden = R.list.length >= R.total;
+  const box = $('r-list'); box.textContent = '';
+  if (!R.list.length) { box.append(el('div', 'empty', 'No report matches.')); return; }
+  const ul = el('ul', 'items wide');
+  for (const r of R.list) {
+    const li = el('li', 'click'), row = el('div', 'row');
+    row.append(el('b', '', fmtRange(r.start_at, r.end_at)), el('span', 'chip' + (r.rollup ? ' own' : ''), r.kind));
+    if (r.status !== 'ready') row.append(statusChip(r.status));
+    if (r.version > 1) row.append(el('span', 'chip lock', 'v' + r.version));
+    if (!$('r-cron').value && S.crons.length > 1) row.append(el('span', 'chip lock', cronName(r.cron_id)));
+    li.append(row);
+    if (r.summary) li.append(el('span', 'd', firstLine(r.summary)));
+    const sites = Array.isArray(r.sites) ? r.sites : (r.sites ? String(r.sites).split(',') : []);
+    if (sites.length) { const s = el('div', 'row'); sites.slice(0, 12).forEach(x => s.append(el('span', 'chip', x))); if (sites.length > 12) s.append(el('span', 'd', `+${sites.length - 12}`)); li.append(s); }
+    li.onclick = () => openReport(r.id);
+    ul.append(li);
+  }
+  box.append(ul);
+}
+$('r-more').onclick = () => loadReports(true).catch(e => toast(e.message));
+const reportsReload = debounce(() => { closeReport(); loadReports().catch(e => toast(e.message)); }, 300);
+for (const id of ['r-cron', 'r-kind']) $(id).onchange = reportsReload;
+for (const id of ['r-site', 'r-q']) $(id).oninput = reportsReload;
+// a report for any range
+(() => {
+  const f = $('r-new'), now = new Date();
+  f.to.value = toLocalInput(now); f.from.value = toLocalInput(new Date(now - 7 * 864e5));
+  f.onsubmit = async e => {
+    e.preventDefault(); $('r-new-err').textContent = '';
+    if (new Date(f.from.value) >= new Date(f.to.value)) { $('r-new-err').textContent = '“From” must be before “To”'; return; }
+    try {
+      const r = await api('POST', cronUrl(f.cron.value) + '/reports', {from: toIso(f.from.value), to: toIso(f.to.value), template: f.template.value.trim()});
+      toast('Building the report…'); $('r-new-box').open = false; openReport(r.id);
+    } catch (x) { $('r-new-err').textContent = x.message; }
+  };
+})();
+
+let reportPoll = null;
+function closeReport() {
+  R.openId = null; clearTimeout(reportPoll);
+  $('r-detail').hidden = true; $('r-list-box').hidden = false;
+  if (currentTab === 'reports') history.replaceState(null, '', '#reports');
+}
+async function openReport(id) {
+  clearTimeout(reportPoll);
+  let r;
+  try { r = await api('GET', 'api/v1/reports/' + encodeURIComponent(id)); } catch (e) { toast(e.message); return; }
+  R.openId = id;
+  history.replaceState(null, '', '#reports/' + encodeURIComponent(id));
+  $('r-list-box').hidden = true;
+  const box = $('r-detail'); box.hidden = false; box.textContent = '';
+  const rep = el('div', 'report'), head = el('div', 'rh'), tl = el('div');
+  tl.append(el('h2', '', `${cronName(r.cron_id)} · ${r.kind}`));
+  const chips = el('div', 'row'); chips.style.display = 'flex'; chips.style.gap = '6px';
+  chips.append(statusChip(r.status)); if (r.version > 1) chips.append(el('span', 'chip lock', 'v' + r.version)); if (r.created_by) chips.append(el('span', 'chip lock', 'by ' + r.created_by));
+  tl.append(chips);
+  const nav = el('div', 'row'); nav.style.display = 'flex'; nav.style.gap = '6px'; nav.style.flexWrap = 'wrap';
+  const back = el('button', 'btn sm', '← List'); back.onclick = closeReport;
+  const prev = el('button', 'btn sm', '‹ Previous'); prev.disabled = !r.previous; prev.onclick = () => openReport(r.previous);
+  const next = el('button', 'btn sm', 'Next ›'); next.disabled = !r.next; next.onclick = () => openReport(r.next);
+  const mdl = el('a', 'btn sm', 'Markdown'); mdl.href = `api/v1/reports/${encodeURIComponent(r.id)}?format=markdown`; mdl.target = '_blank'; mdl.rel = 'noopener';
+  nav.append(back, prev, next, mdl);
+  head.append(tl, nav);
+  rep.append(head, el('div', 'range', `${fmtRange(r.start_at, r.end_at)} · ${r.timezone || ''}`));
+  if (r.status === 'pending') {
+    rep.append(el('div', 'note', 'Being built… this page updates when it is ready.'));
+    reportPoll = setTimeout(() => { if (R.openId === id) openReport(id); }, 2000);
+  } else if (r.status !== 'ready' && !r.data) rep.append(el('div', 'errbox', `This report could not be built (${r.status}).` + (r.error ? ' ' + r.error : '')));
+  if (r.summary) { const s = el('div', 'dsec'); s.append(el('h4', '', 'Summary'), md(r.summary)); rep.append(s); }
+  const data = r.data;
+  if (data && data.kind === 'period') renderPeriod(rep, data, r.can_operate);
+  else if (data && data.kind === 'rollup') renderRollup(rep, data, r.can_operate);
+  else if (r.markdown) rep.append(md(r.markdown));
+  box.append(rep);
+  window.scrollTo({top: 0});
+}
+// one issue line of a report; operators can tick it off
+function repIssue(v, op, extra) {
+  if (!v) return null;
+  const li = el('li', 'irow' + (DONE.includes(v.status) ? ' done' : ''));
+  if (op) {
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = DONE.includes(v.status); cb.disabled = cb.checked; cb.title = 'Mark solved';
+    cb.onchange = async () => {
+      cb.disabled = true;
+      try { await act([v.id], 'solve'); v.status = 'solved'; li.classList.add('done'); toast('Marked solved'); }
+      catch (e) { cb.checked = false; cb.disabled = false; toast(e.message); }
+    };
+    li.append(cb);
+  }
+  const body = el('div', 'body'), row = el('div', 'row');
+  const t = el('button', 'title', v.title); t.onclick = () => openIssue(v.id);
+  row.append(sevChip(v.severity, v.severity_rank), t, linkIcons(v.links));
+  const meta = el('div', 'row');
+  meta.append(el('span', 'chip', v.check), el('span', 'chip lock', v.site));
+  const st = statusChip(v.status); meta.append(st);
+  if (v.reopened) meta.append(el('span', 'chip warn', `recurring ×${v.reopened}`));
+  if (v.owner) meta.append(el('span', 'chip own', v.owner));
+  if (v.ticket) meta.append(el('span', 'chip', 'ticket ' + v.ticket));
+  meta.append(el('span', 'd', [v.first_seen ? 'since ' + fmt(v.first_seen) : '', extra].filter(Boolean).join(' · ')));
+  if (op && v.status === 'open') {
+    const ack = el('button', 'btn sm', 'Acknowledge');
+    ack.onclick = async () => { ack.disabled = true; try { await act([v.id], 'acknowledge'); v.status = 'acknowledged'; st.textContent = 'acknowledged'; st.className = 'chip'; ack.remove(); toast('Acknowledged'); } catch (e) { ack.disabled = false; toast(e.message); } };
+    meta.append(ack);
+  }
+  body.append(row, meta); li.append(body);
+  return li;
+}
+function coverageSection(c) {
+  const s = el('div', 'dsec'); s.append(el('h4', '', 'Coverage'));
+  if (!c) { s.append(el('div', 'note', 'None.')); return s; }
+  s.append(el('div', 'note', `${c.runs} run${c.runs === 1 ? '' : 's'}.`));
+  const rows = Object.entries(c.checks || {}).map(([name, x]) => [name, x.due, x.ran, x.degraded, x.unable, x.failed, x.skipped, (x.reasons || []).join('; ')]);
+  if (rows.length) s.append(table(['Check', 'Due', 'Ran', 'Degraded', 'Unable', 'Failed', 'Skipped', 'Reasons'], rows, [1, 2, 3, 4, 5, 6]));
+  return s;
+}
+function renderPeriod(rep, d, op) {
+  const iss = d.issues || {}, view = x => typeof x === 'string' ? iss[x] : x;
+  const sites = el('div', 'dsec'); sites.append(el('h4', '', 'Sites'));
+  if (!(d.sites || []).length) sites.append(el('div', 'note', 'None.'));
+  for (const s of d.sites || []) {
+    const h = el('div', 'sitehd'); h.append(el('span', '', s.site || '(no site)')); if (s.worst) h.append(sevChip(s.worst)); if (s.since) h.append(el('span', 'note', 'since ' + fmt(s.since)));
+    const ul = el('ul', 'items wide'); s.issues.forEach(id => { const li = repIssue(view(id), op); if (li) ul.append(li); });
+    sites.append(h, ul);
+  }
+  rep.append(sites);
+  rep.append(section('New', (d.new || []).map(view), v => repIssue(v, op), 'None.'));
+  rep.append(section('Solved', d.solved || [], v => repIssue(v, op, [v.solved_by ? 'by ' + v.solved_by : '', v.minutes_to_solve != null ? 'after ' + fmtMinutes(v.minutes_to_solve) : ''].filter(Boolean).join(' ')), 'None.'));
+  rep.append(section('Still open', (d.open || []).map(view), v => repIssue(v, op), 'None.'));
+  rep.append(section('Recurring', (d.recurring || []).map(view), v => repIssue(v, op), 'None.'));
+  const ign = el('div', 'dsec'); ign.append(el('h4', '', 'Ignored and suppressed'));
+  if ((d.ignored || []).length) { const ul = el('ul', 'items wide'); d.ignored.forEach(v => { const li = repIssue(v, false, `${v.action} by ${v.by}` + (v.until ? ' until ' + fmt(v.until) : '') + (v.comment ? ': ' + v.comment : '')); if (li) ul.append(li); }); ign.append(ul); }
+  if ((d.suppressions || []).length) {
+    const ul = el('ul', 'items wide'); ul.style.marginTop = '8px';
+    d.suppressions.forEach(s => { const li = el('li'), row = el('div', 'row'); row.append(el('code', '', Object.entries(s.match || {}).map(([k, v]) => `${k}=${v}`).join(', '))); if (s.check) row.append(el('span', 'chip', s.check));
+      li.append(row, el('span', 'd', [s.reason, 'by ' + s.by, s.until ? 'until ' + fmt(s.until) : ''].filter(Boolean).join(' · '))); ul.append(li); });
+    ign.append(ul);
+  }
+  if (!(d.ignored || []).length && !(d.suppressions || []).length) ign.append(el('div', 'note', 'None.'));
+  rep.append(ign);
+  rep.append(section('Proposed actions', d.proposals || [], p => proposalItem(p, op, () => openReport(R.openId)), 'None.'));
+  rep.append(section('Actions taken', d.actions || [], a => { const li = el('li'), row = el('div', 'row'); row.append(el('code', '', a.tool || '?'), el('span', '', a.target ? 'on ' + a.target : ''), statusChip(a.status)); li.append(row); return li; }, 'None.'));
+  const nums = el('div', 'dsec'); nums.append(el('h4', '', 'Numbers'));
+  if ((d.numbers || []).length) {
+    nums.append(table(['Metric', 'Labels', 'Min', 'Mean', 'Max', 'Before', 'Source'], d.numbers.map(n => {
+      const labels = Object.entries(n.labels || {}).sort().map(([k, v]) => `${k}=${v}`).join(', ');
+      let trend = '';
+      if (n.previous_mean != null && n.mean != null) trend = n.mean > n.previous_mean ? ' ↑' : n.mean < n.previous_mean ? ' ↓' : '';
+      return [n.name + (n.unit ? ` (${n.unit})` : ''), labels, num(n.min), num(n.mean) + trend, num(n.max), num(n.previous_mean), linkIcons(n.links)];
+    }), [2, 3, 4, 5]));
+  } else nums.append(el('div', 'note', 'None recorded.'));
+  rep.append(nums, coverageSection(d.coverage));
+}
+function renderRollup(rep, d, op) {
+  const days = Object.entries(d.days || {});
+  const pd = el('div', 'dsec'); pd.append(el('h4', '', 'Per day'));
+  if (days.length) {
+    pd.append(barChart('New and solved per day', days.map(([k]) => k), [{label: 'new', values: days.map(([, c]) => c.new), color: color(1)}, {label: 'solved', values: days.map(([, c]) => c.solved), color: color(0)}]));
+    const det = el('details', 'box'); det.append(el('summary', '', 'Table'));
+    const inner = el('div'); inner.append(table(['Day', 'New', 'Solved', 'Open at end'], days.map(([k, c]) => [new Date(k + 'T12:00:00').toLocaleDateString([], {weekday: 'short', day: 'numeric', month: 'short'}), c.new, c.solved, c.open]), [1, 2, 3]));
+    det.append(inner); pd.append(det);
+  } else pd.append(el('div', 'note', 'None.'));
+  rep.append(pd);
+  const t = d.time_to_solve || {};
+  const ts = el('div', 'dsec'); ts.append(el('h4', '', 'Time to solve'));
+  const st = el('div', 'stat');
+  for (const [v, l] of [[t.count ?? 0, 'solved'], [fmtMinutes(t.median_minutes), 'median'], [fmtMinutes(t.p90_minutes), '90th percentile']]) { const b = el('div'); b.append(el('b', '', String(v)), el('span', '', l)); st.append(b); }
+  ts.append(st); rep.append(ts);
+  rep.append(section('Longest', d.longest || [], v => repIssue(v, op, 'for ' + fmtMinutes(v.minutes)), 'None.'));
+  rep.append(section('Recurring', d.recurring || [], v => repIssue(v, op), 'None.'));
+  rep.append(section('Still open from before', d.still_open_from_before || [], v => repIssue(v, op), 'None.'));
+  const sites = el('div', 'dsec'); sites.append(el('h4', '', 'Sites with most issues'));
+  if ((d.sites || []).length) sites.append(table(['Site', 'Issues'], d.sites.slice(0, 20).map(s => [s.site, s.issues]), [1])); else sites.append(el('div', 'note', 'None.'));
+  rep.append(sites);
+  const pr = el('div', 'dsec'); pr.append(el('h4', '', 'Proposed actions'));
+  const ps = el('div', 'stat'); Object.entries(d.proposals || {}).forEach(([k, v]) => { const b = el('div'); b.append(el('b', '', String(v)), el('span', '', k)); ps.append(b); });
+  pr.append(ps); rep.append(pr);
+  rep.append(coverageSection(d.coverage));
+  rep.append(section('Period reports' + (d.of ? ` (${d.of})` : ''), d.reports || [], p => {
+    const li = el('li', 'click'); li.append(el('b', '', fmtRange(p.start, p.end))); if (p.summary) li.append(el('span', 'd', firstLine(p.summary)));
+    li.onclick = () => openReport(p.id); return li;
+  }, 'None.'));
+  const tr = el('div', 'dsec'); tr.append(el('h4', '', 'Trends' + (d.resolution ? ` (per ${d.resolution})` : '')));
+  const charts = metricCharts(d.series || [], {band: true});
+  if (charts.length) charts.forEach(c => tr.append(c)); else tr.append(el('div', 'note', 'No metrics recorded.'));
+  rep.append(tr);
+}
+
+// ======================================================================================== crons
+async function loadCronsView() {
+  await loadCronList();
+  $('new-cron').disabled = !S.canAdd; $('new-cron').hidden = !S.canAdd;
+  const errs = $('c-errors'); errs.textContent = '';
+  const e = Object.entries(S.errors);
+  if (e.length) { const b = el('div', 'errbox'); b.append(el('b', '', 'Your crons that could not be read')); e.forEach(([id, m]) => b.append(el('div', '', `${id}: ${m}`))); errs.append(b); }
+  const grid = $('c-grid'); grid.textContent = '';
+  if (!S.crons.length) { grid.append(el('div', 'empty', S.canAdd ? 'You may not see any cron yet. “New cron” adds one of yours.' : 'You may not see any cron.')); return; }
+  S.crons.forEach(c => grid.append(cronCard(c)));
+}
+const SOURCE = {system: 'system', plugin: 'plugin', user: 'sandbox', database: 'added here'};
+function cronCard(c) {
+  const card = el('button', 'card'), name = el('div', 'name', c.qualified || c.name);
+  if (c.editable) name.append(el('span', 'chip own', 'yours'));
+  card.append(name, el('div', 'sub', c.description || ' '));
+  const meta = el('div', 'meta');
+  meta.append(el('span', 'chip', SOURCE[c.source] || c.source), el('span', 'chip' + (c.role === 'operate' ? ' own' : ''), c.role));
+  meta.append(el('span', 'chip ' + (c.enabled ? 'ok' : 'off'), c.enabled ? 'enabled' : 'disabled'));
+  meta.append(el('span', 'chip', `${c.checks.length} check${c.checks.length === 1 ? '' : 's'}`));
+  card.append(meta);
+  const times = el('div', 'sub', [c.next_run_at && c.enabled ? 'next ' + fmt(c.next_run_at) : '', c.last_run_at ? 'last ' + fmt(c.last_run_at) : 'never ran'].filter(Boolean).join(' · '));
+  card.append(times);
+  if (c.last_error) card.append(el('div', 'e', c.last_error));
+  card.onclick = () => openCron(c.id);
+  return card;
+}
+let currentCron = null;
+async function openCron(id) {
+  let c;
+  try { c = await api('GET', cronUrl(id)); } catch (e) { toast(e.message); return; }
+  currentCron = c;
+  $('cron-title').textContent = c.qualified || c.name; $('cron-src').textContent = SOURCE[c.source] || c.source; $('cron-role').textContent = c.role;
+  $('cron-err').textContent = c.last_error || '';
+  $('cron-edit').hidden = $('cron-delete').hidden = !c.editable;
+  const body = $('cron-body'); body.textContent = '';
+  if (c.description) body.append(el('p', 'note', c.description));
+  body.append(kvList([['Id', c.id], ['Owner', c.owner], ['Plugin', c.plugin], ['Time zone', c.timezone], ['Grouped by', c.group_by], ['Mode', c.mode],
+    ['Needs approval', c.unattended], ['Who may see it', c.source === 'database' ? c.visibility : ''], ['Periods', c.periods], ['Rollups', c.rollups],
+    ['Next run', c.enabled ? fmt(c.next_run_at) : 'off'], ['Last run', fmt(c.last_run_at) || 'never'], ['Your role', {operate: 'operate: tick boxes, run, suppress, decide', view: 'view: runs and definition', read: 'read: reports and the board'}[c.role]]]));
+  // on / off
+  const mayToggle = c.editable || (c.source !== 'database' && isAdmin() && c.role !== 'read');
+  const sw = el('label', 'toolbar'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = c.enabled; cb.disabled = !mayToggle;
+  sw.append(cb, el('span', '', c.enabled ? 'Enabled: runs on its schedule' : 'Disabled: does not run'));
+  if (!mayToggle) sw.append(el('span', 'note', c.source === 'database' ? '(only its owner switches it)' : '(system crons: managers only)'));
+  cb.onchange = async () => {
+    try { const r = await api('POST', cronUrl(c.id) + '/state', {enabled: cb.checked}); toast(r.enabled ? 'Enabled' : 'Disabled'); openCron(c.id); loadCronsView(); }
+    catch (e) { cb.checked = !cb.checked; toast(e.message); }
+  };
+  body.append(sw);
+  // run now
+  if (c.role === 'operate') {
+    const s = el('div', 'dsec'); s.append(el('h4', '', 'Run now'));
+    const row = el('div', 'toolbar'), picks = [];
+    for (const k of c.checks) { const l = el('label', 'row'); l.style.display = 'flex'; l.style.gap = '4px'; l.style.alignItems = 'center'; const i = el('input'); i.type = 'checkbox'; i.value = k.name; picks.push(i); l.append(i, document.createTextNode(k.name)); row.append(l); }
+    const run = el('button', 'btn primary', 'Run');
+    run.onclick = async () => {
+      const chosen = picks.filter(i => i.checked).map(i => i.value);
+      run.disabled = true;
+      try { await api('POST', cronUrl(c.id) + '/run', {checks: chosen}); toast(chosen.length ? `Running ${chosen.join(', ')}` : 'Running all checks'); loadRuns(c.id); }
+      catch (e) { toast(e.message); } finally { run.disabled = false; }
+    };
+    row.append(run, el('span', 'note', 'Nothing ticked: all checks.'));
+    s.append(row); body.append(s);
+  }
+  // checks
+  body.append(section('Checks', c.checks, k => {
+    const li = el('li'), row = el('div', 'row'); row.append(el('code', '', k.name)); if (!k.enabled) row.append(el('span', 'chip off', 'disabled'));
+    if ((k.key || []).length) row.append(el('span', 'chip', 'key ' + k.key.join(', ')));
+    if ((k.severities || []).length) row.append(el('span', 'chip', k.severities.join(' › ')));
+    li.append(row); if (k.description) li.append(el('span', 'd', k.description));
+    if ((k.metrics || []).length) { const m = el('div', 'row'); k.metrics.forEach(x => m.append(el('span', 'chip lock', `${x.name}${x.unit ? ' (' + x.unit + ')' : ''}${(x.labels || []).length ? ' by ' + x.labels.join(', ') : ''}`))); li.append(m); }
+    return li;
+  }, 'No checks.'));
+  // runs
+  if (c.role !== 'read') { const s = el('div', 'dsec'); s.append(el('h4', '', 'Runs'), el('div', '', null)); s.lastChild.id = 'cron-runs'; body.append(s); loadRuns(c.id); }
+  // metrics
+  const metricNames = [...new Set(c.checks.flatMap(k => (k.metrics || []).map(m => m.name)))].sort();
+  if (metricNames.length) {
+    const s = el('div', 'dsec'); s.append(el('h4', '', 'Metrics'));
+    const row = el('div', 'toolbar'), sel = el('select'), site = el('input'), step = el('select'), go = el('button', 'btn', 'Show');
+    metricNames.forEach(n => { const o = el('option', '', n); o.value = n; sel.append(o); });
+    site.type = 'text'; site.placeholder = 'Site (optional)';
+    [['hour', 'Hourly · last day'], ['day', 'Daily · last 30 days']].forEach(([v, l]) => { const o = el('option', '', l); o.value = v; step.append(o); });
+    const out = el('div');
+    const showMetric = async () => {
+      out.textContent = '';
+      try {
+        const m = await api('GET', cronUrl(c.id) + '/metrics' + q({name: sel.value, site: site.value.trim(), step: step.value}));
+        const charts = metricCharts(m.series, {band: true});
+        if (!charts.length) out.append(el('div', 'note', 'No values in this range.')); else charts.forEach(x => out.append(x));
+      } catch (e) { out.append(el('div', 'note', e.message)); }
+    };
+    go.onclick = showMetric; sel.onchange = showMetric; step.onchange = showMetric; site.onkeydown = e => { if (e.key === 'Enter') showMetric(); };
+    row.append(sel, site, step, go); s.append(row, out); body.append(s);
+    showMetric();
+  }
+  // definition
+  if (c.role !== 'read' && c.instructions != null) {
+    const s = el('div', 'dsec'); s.append(el('h4', '', 'Definition'));
+    const d1 = el('details', 'box'); d1.open = true; d1.append(el('summary', '', 'Standing instructions (CRON.md)')); const in1 = el('div'); in1.append(el('pre', 'pre', c.instructions || '(empty)')); d1.append(in1); s.append(d1);
+    for (const [k, text] of Object.entries(c.check_instructions || {})) { const d = el('details', 'box'); d.append(el('summary', '', `checks/${k}.md`)); const i = el('div'); i.append(el('pre', 'pre', text || '(empty)')); d.append(i); s.append(d); }
+    if ((c.files || []).length) s.append(el('div', 'note', 'Other files: ' + c.files.join(', ')));
+    body.append(s);
+  }
+  if (!$('cron-dlg').open) $('cron-dlg').showModal();
+}
+$('cron-dlg').addEventListener('close', () => { currentCron = null; });
+const RUN_CLS = {ok: 'ok', issues: 'warn', degraded: 'warn', unable: 'bad', failed: 'bad'};
+async function loadRuns(id) {
+  const box = $('cron-runs'); if (!box) return;
+  let runs;
+  try { runs = (await api('GET', cronUrl(id) + '/runs?limit=50')).runs; } catch (e) { box.textContent = ''; box.append(el('div', 'note', e.message)); return; }
+  box.textContent = '';
+  if (!runs.length) { box.append(el('div', 'note', 'No runs yet.')); return; }
+  box.append(table(['Started', 'Status', 'Checks', 'Skipped'], runs.map(r => {
+    const chips = el('div', 'row'); chips.style.display = 'flex'; chips.style.gap = '4px'; chips.style.flexWrap = 'wrap';
+    for (const name of r.due || Object.keys(r.checks || {})) {
+      const x = (r.checks || {})[name] || {};
+      const status = x.status || (r.status === 'running' ? 'running' : 'failed');
+      const ch = el('span', 'chip ' + (RUN_CLS[status] || STATUS_CLS[status] || ''), `${name}: ${status}` + (x.new ? ` +${x.new}` : '') + (x.solved ? ` −${x.solved}` : ''));
+      ch.title = [x.summary, x.error].filter(Boolean).join('\n') || status;
+      chips.append(ch);
+    }
+    return [fmt(r.started_at) + (r.finished_at ? ` (${Math.max(0, Math.round((date(r.finished_at) - date(r.started_at)) / 1000))} s)` : ''), statusChip(r.status), chips, (r.skipped || []).join(', ')];
+  })));
+}
+
+// editing your own database crons
+const CHECK_TEMPLATE = `---
+description: What this check looks at.
+issue:
+  key: [site, error_class]
+  severity: [critical, high, medium, low]
+---
+Look at ... For each site with a problem, report an issue with its key fields and links to the evidence.
+`;
+function cronTemplate(name) {
+  let tz = 'UTC'; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (_) {}
+  return `---
+name: ${name || 'my-cron'}
+description: What this cron watches.
+timezone: ${tz}
+schedule: {every: 30m}
+periods:
+  - {name: shift, at: ["07:00", "15:00", "23:00"]}
+group: {by: site}
+mode: plan
+---
+Standing instructions for every check: what matters, how to tell noise from real problems.
+`;
+}
+const E = {cron: null, files: {}, current: null};   // files: path → text (new cron), or path → null (existing: loaded when opened)
+function openEditor(c) {
+  E.cron = c; E.current = null;
+  const f = $('edit-form'); f.reset();
+  f.querySelector('option[value=all]').disabled = !isAdmin();
+  f.querySelector('option[value=organization]').disabled = !me.org;
+  f.name.disabled = !!c; $('edit-err').textContent = '';
+  $('edit-title').textContent = c ? `Edit ${c.name}` : 'New cron';
+  if (c) {
+    f.name.value = c.name; f.visibility.value = c.visibility || 'user'; f.enabled.value = String(c.enabled); f.content.value = c.content || '';
+    E.files = {};
+    c.checks.forEach(k => { E.files[`checks/${k.name}.md`] = null; });
+    (c.files || []).forEach(p => { E.files[p] = null; });
+    $('edit-note').textContent = 'Saving CRON.md, its visibility or status applies now. Files are saved one by one below.';
+    $('edit-files-note').textContent = 'Checks are checks/<check>.md; report templates reports/<name>.md. Open one to edit it.';
+  } else {
+    f.name.value = ''; f.visibility.value = 'user'; f.enabled.value = 'true'; f.content.value = cronTemplate('');
+    E.files = {'checks/example.md': CHECK_TEMPLATE};
+    $('edit-note').textContent = 'It runs as you, with your scopes. A cron needs at least one check.';
+    $('edit-files-note').textContent = 'Files are kept here until you create the cron. Checks are checks/<check>.md; report templates reports/<name>.md.';
+  }
+  renderEditFiles();
+  $('edit-dlg').showModal();
+}
+$('edit-form').name.oninput = () => {
+  if (E.cron) return;
+  const f = $('edit-form'); f.content.value = f.content.value.replace(/^name: .*$/m, 'name: ' + (f.name.value.trim() || 'my-cron'));
+};
+function renderEditFiles() {
+  const ul = $('edit-files'); ul.textContent = '';
+  const paths = Object.keys(E.files).sort();
+  ul.hidden = !paths.length;
+  for (const p of paths) {
+    const li = el('li', 'click'), row = el('div', 'row split'); row.append(el('code', '', p));
+    if (E.current === p) row.append(el('span', 'chip own', 'open'));
+    li.append(row); li.onclick = () => editFile(p); ul.append(li);
+  }
+  $('edit-file-delete').hidden = !E.current;
+  $('edit-file-path').disabled = !!E.current;
+}
+async function editFile(p) {
+  E.current = p; $('edit-file-path').value = p;
+  let text = E.files[p];
+  if (text == null && E.cron) {
+    try { text = (await api('GET', `${cronUrl(E.cron.id)}/files/${pathUrl(p)}`)).content; E.files[p] = text; }
+    catch (e) { $('edit-err').textContent = e.message; text = ''; }
+  }
+  if (E.current !== p) return;   // another file was opened meanwhile
+  $('edit-file-content').value = text == null ? '' : text;
+  $('edit-file-content').placeholder = '';
+  renderEditFiles();
+}
+$('edit-file-new').onclick = () => { E.current = null; $('edit-file-path').value = 'checks/'; $('edit-file-content').value = CHECK_TEMPLATE; $('edit-file-content').placeholder = ''; renderEditFiles(); $('edit-file-path').focus(); };
+$('edit-file-save').onclick = async () => {
+  const p = $('edit-file-path').value.trim().replace(/^\/+/, ''), text = $('edit-file-content').value;
+  if (!/^[\w.-]+(\/[\w.-]+)*$/.test(p) || p === 'CRON.md') { $('edit-err').textContent = 'A file needs a path such as checks/jobs.md (CRON.md is above)'; return; }
+  $('edit-err').textContent = '';
+  if (!E.cron) { E.files[p] = text; E.current = p; renderEditFiles(); toast('Kept until you create the cron'); return; }
+  try {
+    const c = await api('PUT', `${cronUrl(E.cron.id)}/files/${pathUrl(p)}`, {content: text});
+    E.files[p] = text; E.current = p; E.cron = {...E.cron, ...c}; renderEditFiles(); toast('File saved');
+  } catch (e) { $('edit-err').textContent = e.message; }
+};
+$('edit-file-delete').onclick = async () => {
+  const p = E.current; if (!p || !confirm(`Delete ${p}?`)) return;
+  if (!E.cron) { delete E.files[p]; E.current = null; $('edit-file-path').value = ''; $('edit-file-content').value = ''; renderEditFiles(); return; }
+  try {
+    await api('DELETE', `${cronUrl(E.cron.id)}/files/${pathUrl(p)}`);
+    delete E.files[p]; E.current = null; $('edit-file-path').value = ''; $('edit-file-content').value = ''; renderEditFiles(); toast('File deleted');
+  } catch (e) { $('edit-err').textContent = e.message; }
+};
+$('edit-save').onclick = async () => {
+  const f = $('edit-form'); if (!f.reportValidity()) return;
+  const body = {visibility: f.visibility.value, enabled: f.enabled.value === 'true'};
+  const b = $('edit-save'); b.disabled = true; $('edit-err').textContent = '';
+  try {
+    let c;
+    if (E.cron) c = await api('PATCH', cronUrl(E.cron.id), {...body, content: f.content.value || undefined});
+    else {
+      const files = {}; for (const [p, t] of Object.entries(E.files)) if (t != null) files[p] = t;
+      c = await api('POST', 'api/v1/crons', {...body, name: f.name.value.trim(), content: f.content.value, files});
+    }
+    $('edit-dlg').close(); toast('Saved'); await loadCronsView(); openCron(c.id);
+  } catch (e) { $('edit-err').textContent = e.message; } finally { b.disabled = false; }
+};
+$('new-cron').onclick = () => openEditor(null);
+$('cron-edit').onclick = () => { const c = currentCron; $('cron-dlg').close(); openEditor(c); };
+$('cron-delete').onclick = async () => {
+  const c = currentCron; if (!c || !confirm(`Delete the cron ${c.name}? Its runs, issues and reports go with it.`)) return;
+  try { await api('DELETE', cronUrl(c.id)); $('cron-dlg').close(); toast('Deleted'); loadCronsView(); } catch (e) { $('cron-err').textContent = e.message; }
+};
+
+// ======================================================================================== live updates
+function connect() {
+  let es;
+  try { es = new EventSource('api/v1/events'); } catch (_) { return; }
+  const on = (type, fn) => es.addEventListener(type, e => { let d; try { d = JSON.parse(e.data); } catch (_) { return; } fn(d); });
+  const board = debounce(() => { if (currentTab === 'board') loadBoard().catch(() => {}); }, 800);
+  const issue = debounce(() => { if (openIssueId && $('issue-dlg').open && !$('ask-dlg').open) openIssue(openIssueId); }, 800);
+  const crons = debounce(() => { if (currentTab === 'crons') loadCronsView().catch(() => {}); }, 800);
+  const runs = debounce(id => { if (currentCron && currentCron.id === id && $('cron-dlg').open) loadRuns(id); }, 800);
+  const reports = debounce(() => { if (currentTab === 'reports' && !R.openId) loadReports().catch(() => {}); }, 800);
+  on('issue', d => { board(); if (openIssueId && (d.issues || []).includes(openIssueId)) issue(); });
+  on('cron_run', d => { crons(); runs(d.cron); if (d.phase !== 'started') board(); });
+  on('report', d => { reports(); if (R.openId && d.report === R.openId && currentTab === 'reports') openReport(R.openId); });
+}
+
+// ======================================================================================== start
+(async () => {
+  try {
+    const m = await api('GET', 'api/v1/me');
+    me.scopes = m.scopes || []; me.org = m.organization_id; me.id = m.user_id || m.subject;
+    $('who').textContent = me.id;
+  } catch (e) { toast(e.message); return; }
+  try {
+    const s = await (await fetch('auth/session')).json(), u = s.user;
+    if (u) { $('who').textContent = displayName(u); $('who').title = whoHint(u); showAccountLink(s); }
+  } catch (_) {}
+  try { await loadCronList(); } catch (e) { toast(e.message); }
+  const [tab, sub] = location.hash.slice(1).split('/');
+  show(tab in VIEWS ? tab : 'board', tab === 'reports' ? sub : undefined);
+  connect();
+})();
+</script></body></html>

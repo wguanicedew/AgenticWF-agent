@@ -1,0 +1,176 @@
+# authsvc route policy for the agent API: these rules belong in AgenticWF-auth's policy.yaml
+# (container/config/policy.yaml, or /etc/agenticwf/policy.yaml when mounted from the host).
+# authsvc denies every route without a matching rule, so each agent endpoint needs one.
+# First matching rule wins: keep these above any broader `/api/**` rule.
+#
+# The agent checks the same scopes again in-process (src/agenticwf/agent/api/app.py), so the two must agree.
+
+required_scopes: [app:access]   # account approval; matches AGENT_REQUIRED_SCOPES
+
+rules:
+  - path: /healthz
+    public: true
+
+  # Chat page; unauthenticated browser page loads are redirected to /auth/login.
+  - path: /
+    methods: [GET, HEAD]
+    authenticated: true
+
+  # Admin page: task types, models, plugins and MCP, in groups; everyone manages their own.
+  - path: /admin
+    methods: [GET, HEAD]
+    authenticated: true
+
+  # Live status (Server-Sent Events).
+  - path: /api/v1/events
+    methods: [GET]
+    authenticated: true
+
+  - path: /api/v1/me
+    methods: [GET]
+    authenticated: true
+    allow_pending: true          # usable before an admin approves the account
+
+  # Chat sessions: people only (browser and CLI). Matches /api/v1/sessions as well.
+  - path: /api/v1/sessions/**
+    scopes: [agent:use]
+    allow_machine: false
+
+  # Task types and models: everyone reads what they may use; people manage their own
+  # (docs/admin-page.md). Writes first: the first matching rule wins.
+  - path: /api/v1/task-types/**
+    methods: [PUT, DELETE]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/task-types/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  - path: /api/v1/models/**
+    methods: [POST, PATCH, DELETE]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/models/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Plugins: everyone lists the system plugins and their own; only managers reload them
+  # (docs/plugins.md).
+  - path: /api/v1/plugins/reload
+    methods: [POST]
+    scopes: [admin]
+    allow_machine: false
+
+  - path: /api/v1/plugins/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # MCP endpoints and tools: everyone reads what they may use; people add and manage their own
+  # (docs/mcp.md). Writes first: the first matching rule wins.
+  - path: /api/v1/mcp/**
+    methods: [POST, PATCH, DELETE]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/mcp/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Tools: everyone lists what they may use; people switch tools off for their own tasks
+  # (docs/admin-page.md, Tools). Writes first. Matches /api/v1/tools as well.
+  - path: /api/v1/tools/**
+    methods: [PUT]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/tools/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Knowledge: everyone lists their knowledge services and KBs; people connect their own, switch
+  # them on or off and choose their search options (docs/admin-page.md, Knowledge). Writes first.
+  # Matches /api/v1/knowledge as well.
+  - path: /api/v1/knowledge/**
+    methods: [POST, PUT, PATCH, DELETE]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/knowledge/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Skills: everyone reads what they may use; people add and manage their own (docs/skills.md).
+  # Writes first: the first matching rule wins. Matches /api/v1/skills as well.
+  - path: /api/v1/skills/**
+    methods: [POST, PATCH, DELETE]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/skills/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Crons, the issue board, proposals and reports (docs/cron.md): everyone reads what their
+  # roles on each cron allow; people change things (machines never tick boxes). Writes first.
+  - path: /crons
+    methods: [GET, HEAD]
+    authenticated: true
+
+  - path: /api/v1/crons/**
+    methods: [POST, PATCH, PUT, DELETE]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/crons/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  - path: /api/v1/issues/**
+    methods: [POST]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/issues/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  - path: /api/v1/proposals/**
+    methods: [POST]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/reports/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Model usage and budgets (managers: everyone's), and rating answers (docs/model-routing.md).
+  - path: /api/v1/usage/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  - path: /api/v1/feedback
+    methods: [POST]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/feedback/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Long-term memory: each caller lists and deletes their own; machine clients' tasks have
+  # memories too (docs/admin-page.md). Matches /api/v1/memories as well.
+  - path: /api/v1/memories/**
+    methods: [GET, DELETE]
+    scopes: [agent:use]
+
+  # Approving a tool call of a task: people only (machines can never approve).
+  - path: /api/v1/tasks/*/approvals/**
+    methods: [POST]
+    scopes: [agent:use]
+    allow_machine: false
+
+  # Background tasks: people and machine-to-machine clients.
+  - path: /api/v1/tasks/**
+    scopes: [agent:use]

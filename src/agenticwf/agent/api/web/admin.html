@@ -1,0 +1,1629 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgenticWF · Admin</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f6fed'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-size='17' font-weight='700' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#fff;--bg-soft:#f7f7f8;--bg-hover:#ececf1;--bg-input:#fff;--bg-code:#f6f6f7;--fg:#1f1f24;--fg-dim:#6b6b76;--fg-faint:#9a9aa5;
+  --border:#e2e2e7;--accent:#2f6fed;--accent-fg:#fff;--ok:#1a7f4b;--warn:#b26a00;--err:#c62828;--shadow:0 2px 12px rgba(0,0,0,.06);--radius:12px}
+:root[data-theme="dark"]{--bg:#1e1f22;--bg-soft:#17181b;--bg-hover:#2a2b30;--bg-input:#26272c;--bg-code:#141518;--fg:#ececf1;--fg-dim:#a6a6b0;
+  --fg-faint:#73737d;--border:#34353b;--accent:#6b9bff;--accent-fg:#0b0c0f;--ok:#4cc38a;--warn:#f0b04c;--err:#ff6b6b;--shadow:0 2px 14px rgba(0,0,0,.35)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1e1f22;--bg-soft:#17181b;--bg-hover:#2a2b30;--bg-input:#26272c;--bg-code:#141518;
+  --fg:#ececf1;--fg-dim:#a6a6b0;--fg-faint:#73737d;--border:#34353b;--accent:#6b9bff;--accent-fg:#0b0c0f;--ok:#4cc38a;--warn:#f0b04c;--err:#ff6b6b;--shadow:0 2px 14px rgba(0,0,0,.35)}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg-soft);color:var(--fg)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+a{color:var(--accent);text-decoration:none}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;height:56px;padding:0 20px;background:var(--bg);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:650}
+.logo{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
+.tabs{display:flex;gap:4px;margin-left:12px}
+.tab{padding:7px 14px;border-radius:9px;color:var(--fg-dim);font-weight:550}
+.tab:hover{background:var(--bg-hover);color:var(--fg)}
+.tab.on{background:var(--bg-hover);color:var(--fg)}
+.spacer{flex:1}
+.who{font-size:14px;color:var(--fg-dim)}
+.icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--fg-dim)}
+.icon:hover{background:var(--bg-hover);color:var(--fg)}
+svg{width:18px;height:18px}
+main{max-width:1080px;margin:0 auto;padding:24px 20px 60px}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:6px}
+h1{font-size:22px;margin:0}
+.lead{color:var(--fg-dim);margin:4px 0 0;font-size:14px;max-width:70ch}
+section.group{margin-top:26px}
+.ghead{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.ghead h2{font-size:15px;margin:0}
+.ghead .count{font-size:12px;color:var(--fg-faint)}
+.ghead .hint{font-size:13px;color:var(--fg-faint)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:104px}
+button.card:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));box-shadow:var(--shadow)}
+.card .name{font-weight:600;display:flex;align-items:center;gap:8px;word-break:break-all}
+.card .sub{font-size:13px;color:var(--fg-dim);word-break:break-all}
+.card .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+.chip{font-size:11.5px;border:1px solid var(--border);border-radius:20px;padding:0 8px;color:var(--fg-dim);white-space:nowrap}
+.chip.own{border-color:var(--accent);color:var(--accent)}
+.chip.off{color:var(--fg-faint);text-decoration:line-through}
+.chip.lock{color:var(--fg-faint)}
+.chip.ok{border-color:color-mix(in srgb,var(--ok) 55%,var(--border));color:var(--ok)}
+.chip.bad{border-color:color-mix(in srgb,var(--err) 55%,var(--border));color:var(--err)}
+.chip.warn{border-color:color-mix(in srgb,var(--warn) 55%,var(--border));color:var(--warn)}
+.dsec{margin:16px 0 0}.dsec h4{font-size:13px;margin:0 0 6px;color:var(--fg-dim);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.items{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.items li{padding:8px 12px;border-top:1px solid var(--border);font-size:14px;display:flex;flex-direction:column;gap:3px}
+.items li:first-child{border-top:0}
+.items .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.items .row.split{justify-content:space-between;flex-wrap:nowrap}.items .row.split>span{word-break:break-word}
+.items code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}
+.items .d{color:var(--fg-dim);font-size:13px}
+.items .e{color:var(--err);font-size:13px;word-break:break-word}
+.items .sub-items{margin:4px 0 0 2px;display:flex;flex-wrap:wrap;gap:4px}
+.items li.click{cursor:pointer}.items li.click:hover{background:var(--bg-hover)}
+.items .toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fg-dim);white-space:nowrap;flex:none}
+.items li.off>.row:first-child>span:first-child{opacity:.55}
+.ksource{margin-bottom:12px}
+.btn.sm{padding:3px 10px;font-size:13px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.toolbar input{flex:1;min-width:180px}
+#group-dlg .subhead{font-size:13px;font-weight:600;color:var(--fg-dim);text-transform:uppercase;letter-spacing:.03em;margin:14px 0 6px}
+#group-add{margin:8px 0 0}
+.items.wide{background:var(--bg)}
+.empty{font-size:14px;color:var(--fg-faint);border:1px dashed var(--border);border-radius:var(--radius);padding:16px;background:var(--bg)}
+.btn{padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:var(--bg);font-size:14px}
+.btn:hover{background:var(--bg-hover)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.danger{color:var(--err)}
+.btn:disabled{opacity:.5;cursor:default}
+dialog{border:1px solid var(--border);border-radius:16px;padding:0;width:min(860px,95vw);max-height:92vh;background:var(--bg);color:var(--fg);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+.dhead{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.dhead h3{margin:0;font-size:17px;flex:1;word-break:break-all}
+.dbody{padding:16px 18px;overflow:auto;max-height:calc(92vh - 130px)}
+.dfoot{display:flex;gap:8px;align-items:center;padding:12px 18px;border-top:1px solid var(--border)}
+.dfoot .err{color:var(--err);font-size:13px;flex:1}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.file label,.form label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--fg-dim)}
+.file .src{font-size:11.5px;color:var(--fg-faint)}
+textarea,input,select{border:1px solid var(--border);border-radius:9px;padding:8px 10px;background:var(--bg-input);font-size:14px}
+textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical;min-height:300px}
+textarea[readonly]{background:var(--bg-code);color:var(--fg-dim)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.form .wide{grid-column:1/-1}
+.form textarea{min-height:70px}
+.note{font-size:13px;color:var(--fg-dim);margin:0 0 12px}
+.inuse{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--fg-dim)}
+.inuse .hint{color:var(--fg-faint)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;margin-bottom:14px}
+.kv dt{color:var(--fg-faint)}.kv dd{margin:0;word-break:break-all}
+.form .subhead{font-size:13px;font-weight:600;color:var(--fg-dim);text-transform:uppercase;letter-spacing:.03em;border-top:1px solid var(--border);padding-top:12px;margin-top:2px}
+.form .subhead span{text-transform:none;letter-spacing:0;font-weight:400;color:var(--fg-faint)}
+.form label.check{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--fg)}
+.form .caps{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:12.5px;color:var(--fg-dim)}
+input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
+.toolbar input[type=checkbox]{flex:none;min-width:0}
+.toolbar label.check{display:flex;align-items:center;gap:6px;font-size:14px}
+.budget{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 15px;margin-bottom:10px;font-size:14px}
+.budget .line{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.budget .line b{font-weight:600}
+.bar{height:6px;background:var(--bg-hover);border-radius:4px;overflow:hidden;margin-top:9px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.bar.warn i{background:var(--warn)}.bar.over i{background:var(--err)}
+.tblwrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--bg)}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th,.tbl td{padding:7px 12px;border-top:1px solid var(--border);text-align:left;vertical-align:top}
+.tbl thead th{border-top:0;font-size:12px;font-weight:600;color:var(--fg-faint);white-space:nowrap}
+.tbl .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl td code{font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}
+.tbl tfoot td{font-weight:600}
+.tbl tr.hl td{background:color-mix(in srgb,var(--warn) 9%,var(--bg))}
+.tbl td.sugg{min-width:220px;color:var(--fg-dim)}
+.tbl tr.hl td.sugg{color:var(--fg)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;z-index:60}
+@media (max-width:760px){.files,.form{grid-template-columns:1fr}.tabs{margin-left:0}.who{display:none}header{gap:8px;padding:0 12px}}
+</style></head><body>
+<header>
+  <a class="brand" href="./" title="Back to the chat"><span class="logo">A</span>AgenticWF</a>
+  <nav class="tabs"><button class="tab" data-tab="types">Task types</button><button class="tab" data-tab="models">Models</button><button class="tab" data-tab="plugins">Plugins</button><button class="tab" data-tab="mcp">MCP</button><button class="tab" data-tab="tools">Tools</button><button class="tab" data-tab="knowledge">Knowledge</button><button class="tab" data-tab="skills">Skills</button><button class="tab" data-tab="memory">Memory</button><button class="tab" data-tab="tokens">Tokens</button><button class="tab" data-tab="groups">Groups</button><a class="tab" href="crons" title="Crons: issues and reports">Crons</a></nav>
+  <span class="spacer"></span>
+  <span class="who" id="who"></span>
+  <a class="icon" id="account-link" title="Edit your profile" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></a>
+  <a class="icon" href="./" title="Chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></a>
+  <button class="icon" id="theme" title="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+</header>
+
+<main>
+  <div id="view-types" hidden>
+    <div class="pagehead">
+      <div><h1>Task types</h1>
+        <p class="lead">A task type is the AGENTS.md and WORKFLOW.md the agent follows. System and plugin types are
+          installed by operators; your own types are yours to change. A file a type leaves out comes from <b>default</b>.</p></div>
+      <button class="btn primary" id="new-type">New task type</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>System</h2><span class="count" id="n-system"></span><span class="hint">read-only</span></div><div class="grid" id="g-system"></div></section>
+    <section class="group"><div class="ghead"><h2>Plugins</h2><span class="count" id="n-plugin"></span><span class="hint">read-only · named &lt;plugin&gt;.&lt;type&gt;</span></div><div class="grid" id="g-plugin"></div></section>
+    <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-user"></span></div><div class="grid" id="g-user"></div></section>
+  </div>
+
+  <div id="view-models" hidden>
+    <div class="pagehead">
+      <div><h1>Models</h1>
+        <p class="lead">System models are configured by operators and read-only. Models you add are yours: only you can
+          change them, and you choose who may use them. API keys are stored encrypted and never shown again.</p>
+        <p class="note" id="model-default-line"></p></div>
+      <button class="btn primary" id="new-model">Add model</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>System</h2><span class="count" id="n-msystem"></span><span class="hint">read-only</span></div><div class="grid" id="g-msystem"></div></section>
+    <section class="group"><div class="ghead"><h2>Shared with me</h2><span class="count" id="n-mshared"></span><span class="hint">added by others · read-only</span></div><div class="grid" id="g-mshared"></div></section>
+    <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-mmine"></span></div><div class="grid" id="g-mmine"></div></section>
+    <section class="group" id="s-usage"><div class="ghead"><h2>Usage</h2><span class="hint" id="usage-hint"></span></div>
+      <div class="budget" id="budget"></div>
+      <div class="toolbar" id="usage-bar">
+        <select id="usage-days" title="Range"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select>
+        <select id="usage-group" title="Group by"><option value="model">By model</option><option value="purpose">By purpose</option><option value="day">By day</option><option value="owner" disabled hidden>By user</option></select>
+        <label class="check" id="usage-all-box" hidden title="Everyone's usage, not only yours"><input type="checkbox" id="usage-all">everyone</label>
+      </div>
+      <div id="usage-table"></div></section>
+    <section class="group" id="s-suggest" hidden><div class="ghead"><h2>Routing suggestions</h2><span class="hint" id="suggest-hint"></span></div>
+      <p class="note" id="suggest-adjusted" hidden></p>
+      <div id="suggest-table"></div></section>
+  </div>
+
+  <div id="view-plugins" hidden>
+    <div class="pagehead">
+      <div><h1>Plugins</h1>
+        <p class="lead">A plugin is a directory that adds task types, tools or MCP endpoints. System plugins are installed by
+          operators and shared with everyone unless they limit who may use them; plugins in your sandbox are yours only.
+          A plugin that provides several kinds is listed in each group.</p></div>
+      <button class="btn" id="reload-plugins" hidden title="Read the system plugins again and reconnect their MCP servers">Reload</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>Task type plugins</h2><span class="count" id="n-ptypes"></span><span class="hint">types named &lt;plugin&gt;.&lt;type&gt;</span></div><div class="grid" id="g-ptypes"></div></section>
+    <section class="group"><div class="ghead"><h2>Tool plugins</h2><span class="count" id="n-ptools"></span><span class="hint">tools named &lt;plugin&gt;__&lt;tool&gt;</span></div><div class="grid" id="g-ptools"></div></section>
+    <section class="group"><div class="ghead"><h2>MCP plugins</h2><span class="count" id="n-pmcp"></span><span class="hint">MCP endpoints; their tools are named &lt;plugin&gt;__&lt;tool&gt;</span></div><div class="grid" id="g-pmcp"></div></section>
+    <section class="group" id="s-pother" hidden><div class="ghead"><h2>Empty or broken</h2><span class="count" id="n-pother"></span><span class="hint">provide nothing usable</span></div><div class="grid" id="g-pother"></div></section>
+  </div>
+
+  <div id="view-mcp" hidden>
+    <div class="pagehead">
+      <div><h1>MCP</h1>
+        <p class="lead">An MCP endpoint is a server whose tools the agent can call. Plugins install some, shared with everyone
+          unless the plugin limits them. Endpoints you add are yours: only you see them until you share them, and each of their
+          tools can be enabled, shared or hidden on its own. Adding an endpoint asks it for its tools.</p></div>
+      <button class="btn primary" id="new-endpoint">Add endpoint</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>From plugins</h2><span class="count" id="n-eplugin"></span><span class="hint">installed by operators · read-only</span></div><div class="grid" id="g-eplugin"></div></section>
+    <section class="group"><div class="ghead"><h2>Shared with me</h2><span class="count" id="n-eshared"></span><span class="hint">added by others · read-only</span></div><div class="grid" id="g-eshared"></div></section>
+    <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-emine"></span></div><div class="grid" id="g-emine"></div></section>
+    <section class="group"><div class="ghead"><h2>MCP tools</h2><span class="count" id="n-mtools"></span><span class="hint">every MCP tool you can use · named &lt;endpoint or plugin&gt;__&lt;tool&gt;</span></div>
+      <div class="toolbar"><input id="tool-filter" placeholder="Filter by name, endpoint or summary"><select id="tool-group"><option value="">All</option><option value="plugin">From plugins</option><option value="shared">Shared with me</option><option value="mine">Mine</option></select></div>
+      <div id="g-mtools"></div></section>
+  </div>
+
+  <div id="view-tools" hidden>
+    <div class="pagehead">
+      <div><h1>Tools</h1>
+        <p class="lead">Every tool your tasks can use, and where it comes from: the agent itself, the system, a plugin or an MCP
+          endpoint. Switch off a tool, or every tool of a plugin or an endpoint, to keep it out of your tasks; nobody else is
+          affected. Tools come with plugins and MCP endpoints (add yours on the MCP tab); skills are on their own tab.</p></div>
+    </div>
+    <section class="group"><div class="ghead"><h2>Plugins and MCP endpoints</h2><span class="count" id="n-tgroups"></span><span class="hint">switch all of their tools at once</span></div><div id="g-tgroups"></div></section>
+    <section class="group"><div class="ghead"><h2>Tools</h2><span class="count" id="n-tools"></span><span class="hint">named as your tasks call them</span></div>
+      <div class="toolbar"><input id="tools-filter" placeholder="Filter by name, source or summary"><select id="tools-kind"><option value="">All</option><option value="builtin">Agent and system</option><option value="plugin">From plugins</option><option value="mcp">MCP</option><option value="off">Switched off</option></select></div>
+      <div id="g-tools"></div></section>
+  </div>
+
+  <div id="view-knowledge" hidden>
+    <div class="pagehead">
+      <div><h1>Knowledge</h1>
+        <p class="lead">Knowledge bases the agent searches for your tasks (kb_search, kb_read, kb_grep, kb_research). The system
+          knowledge service is configured by operators; services you connect are yours only and are reached with their own
+          token. Switch off a service or a single knowledge base to keep it out of your tasks. Documents are added in the
+          knowledge service's own pages.</p></div>
+      <button class="btn primary" id="new-kservice">Connect service</button>
+    </div>
+    <p class="note" id="knowledge-note" hidden></p>
+    <section class="group" id="ksearch" hidden><div class="ghead"><h2>Search</h2><span class="hint">how your tasks search · saved at once</span></div>
+      <form class="form" id="ksearch-form" onsubmit="return false">
+        <label>Search tools<select name="tools" id="ksearch-tools"></select></label>
+        <label>kb_research mode<select name="research_preset" id="ksearch-preset"></select></label>
+        <p class="note wide" id="ksearch-note"></p>
+        <div class="wide inuse" id="ksearch-inuse"></div>
+      </form></section>
+    <section class="group"><div class="ghead"><h2>System</h2><span class="hint">configured by operators · switch on or off for your tasks</span></div><div id="g-ksys"></div></section>
+    <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-kservices"></span><span class="hint">its knowledge bases are named &lt;ref&gt;@&lt;name&gt;</span></div><div id="g-kmineservices"></div></section>
+  </div>
+
+  <div id="view-skills" hidden>
+    <div class="pagehead">
+      <div><h1>Skills</h1>
+        <p class="lead">A skill is a set of instructions for one kind of work, such as release notes or a review checklist. The agent
+          sees the skills closest to each request and loads one when it fits; the skill's instructions then guide the task, and
+          the tools it names are the only ones offered. Skills you add are yours: only you see them until you share them.</p></div>
+      <button class="btn primary" id="new-skill">New skill</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>System</h2><span class="count" id="n-ksystem"></span><span class="hint">installed by operators · read-only</span></div><div class="grid" id="g-ksystem"></div></section>
+    <section class="group"><div class="ghead"><h2>Plugins</h2><span class="count" id="n-kplugin"></span><span class="hint">read-only · named &lt;plugin&gt;.&lt;skill&gt;</span></div><div class="grid" id="g-kplugin"></div></section>
+    <section class="group"><div class="ghead"><h2>Shared with me</h2><span class="count" id="n-kshared"></span><span class="hint">added by others · they ask before they load</span></div><div class="grid" id="g-kshared"></div></section>
+    <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-kmine"></span></div><div class="grid" id="g-kmine"></div></section>
+  </div>
+
+  <div id="view-memory" hidden>
+    <div class="pagehead">
+      <div><h1>Memory</h1>
+        <p class="lead">What the agent remembers about you from your earlier tasks: your preferences, facts about your
+          environment, decisions that matter again. It recalls the most relevant at the start of each task and can search
+          the rest. Only your tasks see your memories. Delete what is wrong or that you would rather it forgot.</p></div>
+      <button class="btn danger" id="forget-all">Delete all</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>Your memories</h2><span class="count" id="n-memory"></span><span class="hint">newest first</span></div>
+      <div id="g-memory"></div>
+      <div class="toolbar" style="margin-top:10px"><button class="btn" id="memory-more" hidden>Show more</button></div></section>
+  </div>
+
+  <div id="view-tokens" hidden>
+    <div class="pagehead">
+      <div><h1>Personal access tokens</h1>
+        <p class="lead">A token lets the <code>agenticwf</code> command line and your scripts act as you without the browser
+          sign-in. It carries all your permissions, so treat it like a password: one per machine or job, the shortest expiry
+          that works, and revoke it when you no longer need it.</p></div>
+      <button class="btn primary" id="new-token">New token</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>Your tokens</h2><span class="count" id="n-tokens"></span><span class="hint">values are never shown again after creation</span></div>
+      <div id="g-tokens"></div></section>
+  </div>
+
+  <div id="view-groups" hidden>
+    <div class="pagehead">
+      <div><h1>Groups</h1>
+        <p class="lead">Groups are how you share with a team: a knowledge base or a document with <em>groups</em> visibility
+          is shared with the groups you name. Ask to join a group; its admins approve requests and manage its members.
+          A change applies within a minute, without signing in again.</p></div>
+      <button class="btn primary" id="new-group" hidden>New group</button>
+    </div>
+    <section class="group"><div class="ghead"><h2>Your groups</h2><span class="count" id="n-gmine"></span></div><div id="g-gmine"></div></section>
+    <section class="group"><div class="ghead"><h2>Other groups</h2><span class="count" id="n-gother"></span><span class="hint">ask to join</span></div><div id="g-gother"></div></section>
+  </div>
+</main>
+
+<dialog id="token-dlg">
+  <div class="dhead"><h3>New personal access token</h3><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <div class="form" id="token-form">
+      <label>Name<input id="token-name" maxlength="64" placeholder="e.g. laptop, ci-nightly"></label>
+      <label>Expires<select id="token-days"></select></label>
+    </div>
+    <div id="token-done" hidden>
+      <p class="note">Copy the token now. It is not shown again; if you lose it, revoke it and create a new one.</p>
+      <div class="toolbar"><input id="token-value" readonly><button class="btn" id="token-copy">Copy</button></div>
+      <p class="note">To use it with the <code>agenticwf</code> command line (<code>pip install ./cli</code> from AgenticWF-auth):</p>
+      <textarea id="token-setup" readonly style="width:100%;min-height:150px"></textarea>
+    </div>
+  </div>
+  <div class="dfoot"><span class="err" id="token-err"></span><button class="btn" data-close>Close</button><button class="btn primary" id="token-create">Create</button></div>
+</dialog>
+
+<dialog id="group-dlg">
+  <div class="dhead"><h3 id="group-title"></h3><span class="chip" id="group-ref" title="What knowledge bases store when shared with this group"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <form class="form" id="group-form" autocomplete="off">
+      <label>Name<input name="gname" maxlength="128" required></label>
+      <label class="wide">Description<input name="gdesc" maxlength="1000" placeholder="Optional"></label>
+    </form>
+    <div class="subhead">Members</div>
+    <div id="group-members"></div>
+    <div class="toolbar" id="group-add">
+      <input id="group-add-email" type="email" placeholder="email of someone who has signed up" style="flex:1">
+      <label class="check"><input type="checkbox" id="group-add-admin">admin</label>
+      <button class="btn" id="group-add-btn">Add</button>
+    </div>
+    <div id="group-requests-box"><div class="subhead">Requests to join</div><div id="group-requests"></div></div>
+  </div>
+  <div class="dfoot"><span class="err" id="group-err"></span>
+    <button class="btn danger" id="group-delete">Delete group</button><button class="btn" id="group-leave">Leave</button><button class="btn" data-close>Close</button><button class="btn primary" id="group-save">Save</button></div>
+</dialog>
+
+<dialog id="type-dlg">
+  <div class="dhead"><h3 id="type-title"></h3><span class="chip" id="type-src"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <label class="form" id="type-name-row" style="display:block;margin-bottom:12px">
+      <span style="font-size:12.5px;color:var(--fg-dim)">Name (lowercase letters, digits, dashes)</span>
+      <input id="type-name" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="e.g. code-review" style="width:100%;margin-top:4px">
+    </label>
+    <dl class="kv" id="type-settings"></dl>
+    <div class="files">
+      <div class="file"><label>AGENTS.md <span class="src" id="src-agents"></span><textarea id="f-agents" spellcheck="false"></textarea></label></div>
+      <div class="file"><label>WORKFLOW.md <span class="src" id="src-workflow"></span><textarea id="f-workflow" spellcheck="false"></textarea></label></div>
+    </div>
+  </div>
+  <div class="dfoot"><span class="err" id="type-err"></span>
+    <button class="btn danger" id="type-delete">Delete</button><button class="btn" data-close>Close</button><button class="btn primary" id="type-save">Save</button></div>
+</dialog>
+
+<dialog id="model-dlg">
+  <div class="dhead"><h3 id="model-title"></h3><span class="chip" id="model-src"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="model-note"></p>
+    <form class="form" id="model-form" autocomplete="off">
+      <label>Id<input name="mid" required pattern="[a-z0-9][a-z0-9._\-]{0,63}" placeholder="e.g. my-claude"></label>
+      <label>Label<input name="label" placeholder="Shown in the chat's model picker"></label>
+      <label>Provider<select name="provider"><option>anthropic</option><option>openai</option><option>vllm</option><option>ollama</option><option>echo</option></select></label>
+      <label>Model<input name="model" required placeholder="claude-opus-5-5, Qwen/Qwen3-32B, qwen3:32b …"></label>
+      <label>Base URL<input name="base_url" placeholder="Required for vLLM; Ollama, proxies"></label>
+      <label>API key<input name="api_key" type="password" placeholder="Stored encrypted"></label>
+      <label>Who may use it<select name="visibility"><option value="user">Only me</option><option value="organization">My organization</option><option value="all">Everyone (managers)</option></select></label>
+      <label>Status<select name="enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+      <label class="wide">Description<input name="description" placeholder="Optional"></label>
+      <div class="wide subhead">Routing <span>· what the router knows of it; empty: not declared</span></div>
+      <label>Tier<select name="r_tier"><option value="">not declared</option><option value="small">small</option><option value="medium">medium</option><option value="large">large</option></select></label>
+      <label>Speed<select name="r_speed"><option value="">not declared (normal)</option><option value="fast">fast</option><option value="normal">normal</option><option value="slow">slow</option></select></label>
+      <label>Context window (tokens)<input name="r_context_window" type="number" min="1" step="1" placeholder="e.g. 200000"></label>
+      <label>Max output (tokens)<input name="r_max_output" type="number" min="1" step="1" placeholder="e.g. 32000"></label>
+      <label>Cost input (per million tokens)<input name="r_cost_input" type="number" min="0" step="any"></label>
+      <label>Cost output (per million tokens)<input name="r_cost_output" type="number" min="0" step="any"></label>
+      <label>Cost cached input (per million tokens)<input name="r_cost_cached_input" type="number" min="0" step="any"></label>
+      <label class="check" title="Unchecked: used only when chosen by name, never picked by the router"><input type="checkbox" name="r_routable" checked>Routable: the router may choose it</label>
+      <div class="wide caps"><span>Capabilities</span>
+        <label class="check"><input type="checkbox" name="r_cap" value="tools">tools</label>
+        <label class="check"><input type="checkbox" name="r_cap" value="vision">vision</label>
+        <label class="check"><input type="checkbox" name="r_cap" value="reasoning">reasoning</label>
+        <label class="check"><input type="checkbox" name="r_cap" value="json">json</label></div>
+      <label class="wide">Other options (JSON)<textarea name="options" placeholder='{"effort": "high", "fallbacks": "default", "max_tokens": 32000}'></textarea></label>
+    </form>
+    <dl class="kv" id="model-readonly" hidden></dl>
+  </div>
+  <div class="dfoot"><span class="err" id="model-err"></span>
+    <button class="btn danger" id="model-delete">Remove</button><button class="btn" id="model-make-default" title="Your tasks that name no model run on it">Make default</button><button class="btn" data-close>Close</button><button class="btn primary" id="model-save">Save</button></div>
+</dialog>
+
+<dialog id="plugin-dlg">
+  <div class="dhead"><h3 id="plugin-title"></h3><span class="chip" id="plugin-src"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody"><p class="note" id="plugin-desc"></p><dl class="kv" id="plugin-kv"></dl><div id="plugin-parts"></div></div>
+  <div class="dfoot"><span class="err"></span><button class="btn" data-close>Close</button></div>
+</dialog>
+
+<dialog id="endpoint-dlg">
+  <div class="dhead"><h3 id="endpoint-title"></h3><span class="chip" id="endpoint-src"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="endpoint-note"></p>
+    <form class="form" id="endpoint-form" autocomplete="off">
+      <label>Name<input name="ename" required pattern="[a-z][a-z0-9_]{0,63}" placeholder="e.g. papers (tools: papers__…)"></label>
+      <label>Label<input name="label" placeholder="Optional"></label>
+      <label class="wide">URL (streamable HTTP)<input name="url" required placeholder="https://mcp.example.org/mcp"></label>
+      <label class="wide">Headers, one per line: Name: value<textarea name="headers" placeholder="Authorization: Bearer …  (stored encrypted, never shown again)"></textarea></label>
+      <label>Who may use it<select name="visibility"><option value="user">Only me</option><option value="organization">My organization</option><option value="all">Everyone (managers)</option></select></label>
+      <label>Status<select name="enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+      <label>Approval of its tools<select name="approval"><option value="">Ask (default)</option><option value="deny">Deny</option></select></label>
+      <label>Effects of its tools<select name="effects"><option value="">From the tools' hints</option><option value="none">none (read-only)</option><option value="local">local</option><option value="external">external</option></select></label>
+      <label>Only these tools<input name="tools" placeholder="Empty: all; or: search, fetch"></label>
+      <label>Timeout (s)<input name="timeout" type="number" min="1" max="3600" value="60"></label>
+      <label class="wide">Description<input name="description" placeholder="Optional"></label>
+    </form>
+    <dl class="kv" id="endpoint-kv" hidden></dl>
+    <div id="endpoint-parts"></div>
+  </div>
+  <div class="dfoot"><span class="err" id="endpoint-err"></span>
+    <button class="btn danger" id="endpoint-delete">Remove</button><button class="btn" id="endpoint-refresh" title="Ask the endpoint for its tools again">Refresh tools</button>
+    <button class="btn" data-close>Close</button><button class="btn primary" id="endpoint-save">Save</button></div>
+</dialog>
+
+<dialog id="kservice-dlg">
+  <div class="dhead"><h3 id="kservice-title"></h3><span class="chip own">yours</span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="kservice-note"></p>
+    <form class="form" id="kservice-form" autocomplete="off">
+      <label>Name<input name="kname" required pattern="[a-z][a-z0-9_\-]{0,63}" placeholder="e.g. cern (KBs: …@cern)"></label>
+      <label>Label<input name="label" placeholder="Optional"></label>
+      <label class="wide">URL<input name="url" required placeholder="https://kb.example.org"></label>
+      <label>Base path<input name="base_path" value="/kb" required pattern="/.*"></label>
+      <label>Status<select name="enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+      <label class="wide">Token<input name="token" type="password" placeholder="Bearer token (stored encrypted, never shown again)"></label>
+    </form>
+  </div>
+  <div class="dfoot"><span class="err" id="kservice-err"></span>
+    <button class="btn danger" id="kservice-delete">Remove</button>
+    <button class="btn" data-close>Close</button><button class="btn primary" id="kservice-save">Save</button></div>
+</dialog>
+
+<dialog id="tool-dlg">
+  <div class="dhead"><h3 id="tool-title"></h3><span class="chip" id="tool-src"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="tool-desc" style="white-space:pre-wrap"></p>
+    <dl class="kv" id="tool-kv"></dl>
+    <form class="form" id="tool-form">
+      <label>Status<select name="enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+      <label>Who may use it<select name="visibility"><option value="">As its endpoint</option><option value="user">Only me</option><option value="organization">My organization</option><option value="all">Everyone (managers)</option></select></label>
+      <label>Approval<select name="approval"><option value="ask">Ask</option><option value="deny">Deny</option></select></label>
+    </form>
+  </div>
+  <div class="dfoot"><span class="err" id="tool-err"></span><button class="btn" data-close>Close</button><button class="btn primary" id="tool-save">Save</button></div>
+</dialog>
+
+<dialog id="skill-dlg">
+  <div class="dhead"><h3 id="skill-title"></h3><span class="chip" id="skill-src"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="skill-note"></p>
+    <dl class="kv" id="skill-kv"></dl>
+    <form class="form" id="skill-form" autocomplete="off">
+      <label>Name<input name="name" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="64" placeholder="e.g. release-notes"></label>
+      <label>Who may use it<select name="visibility"><option value="user">Only me</option><option value="organization">My organization</option><option value="all">Everyone (managers)</option></select></label>
+      <label class="wide">Description<input name="description" required maxlength="1024" placeholder="What it does and when to use it: the agent chooses skills by this"></label>
+      <label>Tools<input name="tools" placeholder="Only these while it runs, e.g. read_file, github__*"></label>
+      <label>Status<select name="enabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+      <label class="wide">Instructions (Markdown)<textarea name="instructions" placeholder="Steps, rules and examples the agent follows when it uses this skill"></textarea></label>
+    </form>
+    <label class="file" id="skill-text-box" hidden><textarea id="skill-text" readonly></textarea></label>
+    <div class="dsec" id="skill-files-sec" hidden><h4>Files</h4>
+      <p class="note" id="skill-files-note"></p>
+      <ul class="items" id="skill-files"></ul>
+      <div class="form" id="skill-file-form" hidden style="margin-top:10px">
+        <label class="wide">Path<input id="skill-file-path" maxlength="255" placeholder="e.g. template.md or docs/checklist.md"></label>
+        <label class="wide">Content<textarea id="skill-file-content"></textarea></label>
+        <div class="wide"><button class="btn" type="button" id="skill-file-new">New file</button>
+          <button class="btn danger" type="button" id="skill-file-delete">Delete file</button>
+          <button class="btn primary" type="button" id="skill-file-save">Save file</button></div>
+      </div>
+      <label class="file" id="skill-file-view-box" hidden style="margin-top:10px"><textarea id="skill-file-view" readonly></textarea></label>
+    </div>
+  </div>
+  <div class="dfoot"><span class="err" id="skill-err"></span>
+    <button class="btn danger" id="skill-delete">Remove</button><button class="btn" data-close>Close</button><button class="btn primary" id="skill-save">Save</button></div>
+</dialog>
+
+<script>
+'use strict';
+// Relative URLs: works at /admin and under a prefix such as /app/admin. Everything from the server
+// is inserted as text, never as HTML.
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const login = () => { location = 'auth/login?return_to=' + encodeURIComponent(location.pathname); };
+async function api(method, path, body) {
+  const r = await fetch(path, {method, headers: body ? {'Content-Type': 'application/json'} : {}, body: body ? JSON.stringify(body) : undefined});
+  if (r.status === 401) { login(); throw new Error('signed out'); }
+  if (!r.ok) {
+    let d = r.status; try { const j = await r.json(); d = j.detail || j.error_description || d; } catch (_) {}
+    const err = new Error(typeof d === 'string' ? d : JSON.stringify(d)); err.status = r.status; throw err;
+  }
+  return r.status === 204 ? null : r.json();
+}
+function toast(text) { const t = el('div', 'toast', text); document.body.append(t); setTimeout(() => t.remove(), 2200); }
+const store = {get: k => { try { return localStorage.getItem(k); } catch (_) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} }};
+const me = {id: null, scopes: [], org: null};
+// The signed-in user as people know them: an email-only sign-up has no name, so fall back to the
+// username, then the email. The hover hint carries the full text the layout may truncate.
+const displayName = u => u.name || u.username || u.email || u.id || 'You';
+const whoHint = u => [displayName(u), u.email].filter((v, i, a) => v && a.indexOf(v) === i).join(' · ');
+// Profile page (Logto Account Center, auth/session's account_url). The way back is a sign-in, silent while
+// the Logto session lasts, so this page then shows the name the user just changed.
+function showAccountLink(s) {
+  if (!/^https?:\/\//i.test(s.account_url || '')) return;
+  const back = new URL('auth/login?return_to=' + encodeURIComponent(location.pathname + location.search + location.hash), location.href);
+  $('account-link').href = `${s.account_url}/profile?redirect=${encodeURIComponent(back.href)}`;
+  $('account-link').hidden = false;
+}
+
+// theme (shared with the chat page)
+function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+applyTheme(store.get('theme'));
+$('theme').onclick = () => {
+  const dark = (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+  const next = dark ? 'light' : 'dark'; applyTheme(next); store.set('theme', next);
+};
+document.querySelectorAll('dialog [data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+
+// tabs, remembered in the address (#types, #models, #plugins, #mcp, #knowledge, #skills, #memory, #tokens, #groups)
+const VIEWS = {types: () => loadTypes(), models: () => { loadUsage().catch(e => toast(e.message)); return loadModels(); }, plugins: () => loadPlugins(), mcp: () => loadMcp(), tools: () => loadTools(),
+               knowledge: () => loadKnowledge(), skills: () => loadSkills(), memory: () => loadMemory(), tokens: () => loadTokens(), groups: () => loadGroups()};
+function show(tab) {
+  document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
+  for (const v of Object.keys(VIEWS)) $('view-' + v).hidden = tab !== v;
+  history.replaceState(null, '', '#' + tab);
+  VIEWS[tab]().catch(e => toast(e.message));
+}
+document.querySelectorAll('.tab[data-tab]').forEach(t => t.onclick = () => show(t.dataset.tab));
+
+function fill(gridId, countId, items, render, emptyText) {
+  const grid = $(gridId); grid.textContent = ''; $(countId).textContent = items.length ? String(items.length) : '';
+  if (!items.length) { grid.append(el('div', 'empty', emptyText)); return; }
+  items.forEach(i => grid.append(render(i)));
+}
+
+// ------------------------------------------------------------------------------------- task types
+let typesCanAdd = false;
+async function loadTypes() {
+  const data = await api('GET', 'api/v1/task-types');
+  typesCanAdd = data.can_add;
+  $('new-type').disabled = !typesCanAdd; $('new-type').title = typesCanAdd ? '' : 'User task types are not enabled on this server ([context] sandbox_root)';
+  const by = src => data.task_types.filter(t => t.source === src);
+  fill('g-system', 'n-system', by('system'), typeCard, 'No system task types.');
+  fill('g-plugin', 'n-plugin', by('plugin'), typeCard, 'No plugin provides task types.');
+  fill('g-user', 'n-user', by('user'), typeCard, typesCanAdd ? 'You have no task types yet. “New task type” starts one from default.' : 'User task types are not enabled on this server.');
+}
+function typeCard(t) {
+  const c = el('button', 'card');
+  const name = el('div', 'name', t.name); if (t.editable) name.append(el('span', 'chip own', 'yours'));
+  if (t.ref && t.ref !== t.name) name.append(el('span', 'chip', 'choose as ' + t.ref));   // the name is also another type's
+  const s = t.settings, bits = [];
+  if (s.mode && s.mode !== 'default') bits.push('mode ' + s.mode);
+  if (s.model) bits.push('model ' + s.model);
+  if (s.max_steps) bits.push(s.max_steps + ' steps');
+  if (s.plan) bits.push('plan ' + s.plan);
+  c.append(name, el('div', 'sub', t.source === 'plugin' ? `from plugin ${t.plugin}` : (bits.join(' · ') || ' ')));
+  const meta = el('div', 'meta');
+  for (const f of ['AGENTS.md', 'WORKFLOW.md']) meta.append(el('span', 'chip' + (t.files.includes(f) ? '' : ' lock'), t.files.includes(f) ? f : f + ' (default)'));
+  if (t.source === 'plugin' && bits.length) meta.append(el('span', 'chip', bits.join(' · ')));
+  c.append(meta);
+  c.onclick = () => openType(t.id);
+  return c;
+}
+let currentType = null;
+async function openType(name) {
+  const t = await api('GET', 'api/v1/task-types/' + encodeURIComponent(name));
+  currentType = t;
+  $('type-title').textContent = t.id; $('type-src').textContent = t.source; $('type-name-row').hidden = true;
+  const kv = $('type-settings'); kv.textContent = ''; kv.hidden = false;
+  const add = (k, v) => { kv.append(el('dt', '', k), el('dd', '', v)); };
+  add('Source', t.source === 'plugin' ? `plugin ${t.plugin}` : t.source);
+  add('Mode', t.settings.mode); if (t.settings.model) add('Model', t.settings.model);
+  if (t.settings.max_steps) add('Max steps', String(t.settings.max_steps)); if (t.settings.plan) add('Planning', t.settings.plan);
+  setFile('agents', t.content['AGENTS.md'], t.editable); setFile('workflow', t.content['WORKFLOW.md'], t.editable);
+  $('type-save').hidden = $('type-delete').hidden = !t.editable; $('type-err').textContent = '';
+  $('type-dlg').showModal();
+}
+function setFile(key, file, editable) {
+  const area = $('f-' + key);
+  area.readOnly = !editable;
+  // For your own type, an inherited file starts empty: leave it empty to keep inheriting from default.
+  area.value = editable && file.inherited ? '' : file.content;
+  area.placeholder = editable ? 'Empty: inherited from default' : '';
+  $('src-' + key).textContent = file.inherited ? `· inherited (${file.source})` : `· ${file.source}`;
+}
+$('new-type').onclick = async () => {
+  const base = await api('GET', 'api/v1/task-types/default');
+  currentType = null;
+  $('type-title').textContent = 'New task type'; $('type-src').textContent = 'yours'; $('type-name-row').hidden = false;
+  $('type-name').value = ''; $('type-settings').hidden = true; $('type-err').textContent = '';
+  for (const [key, file] of [['agents', 'AGENTS.md'], ['workflow', 'WORKFLOW.md']]) {
+    const area = $('f-' + key); area.readOnly = false; area.value = base.content[file].content;
+    area.placeholder = 'Empty: inherited from default'; $('src-' + key).textContent = '· starts from default';
+  }
+  $('type-save').hidden = false; $('type-delete').hidden = true;
+  $('type-dlg').showModal(); $('type-name').focus();
+};
+$('type-save').onclick = async () => {
+  const name = currentType ? currentType.name : $('type-name').value.trim();   // always one of yours: your scope
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) { $('type-err').textContent = 'Name: lowercase letters, digits and single dashes'; return; }
+  try {
+    await api('PUT', 'api/v1/task-types/' + encodeURIComponent(name), {agents_md: $('f-agents').value || null, workflow_md: $('f-workflow').value || null});
+    $('type-dlg').close(); toast(`Saved ${name}`); loadTypes();
+  } catch (e) { $('type-err').textContent = e.message; }
+};
+$('type-delete').onclick = async () => {
+  if (!currentType || !confirm(`Delete task type ${currentType.name}? New tasks of this type will use default.`)) return;
+  try { await api('DELETE', 'api/v1/task-types/' + encodeURIComponent(currentType.id)); $('type-dlg').close(); toast('Deleted'); loadTypes(); }
+  catch (e) { $('type-err').textContent = e.message; }
+};
+
+// ------------------------------------------------------------------------------------- models
+let models = {models: [], default: null, can_add: false};
+async function loadModels() {
+  models = await api('GET', 'api/v1/models?detail=true');
+  $('new-model').disabled = !models.can_add;
+  const by = g => models.models.filter(m => m.group === g);
+  fill('g-msystem', 'n-msystem', by('system'), modelCard, 'No system models.');
+  fill('g-mshared', 'n-mshared', by('shared'), modelCard, 'Nobody shares a model with you.');
+  fill('g-mmine', 'n-mmine', by('mine'), modelCard, 'You have not added a model. “Add model” connects one of yours: your own API key, a vLLM or Ollama server.');
+  showDefault();
+}
+// Your default: the model your tasks run on when nothing chooses one; without one, the system's.
+function showDefault() {
+  const line = $('model-default-line'), name = id => { const m = models.models.find(x => x.id === id); return m ? (m.label || m.id) : id; };
+  line.textContent = '';
+  if (!models.default) { line.textContent = 'No default model.'; return; }
+  line.append('Your default: ', el('b', '', name(models.default)));
+  if (!models.user_default) { line.append(' (the system default). Open a model to choose another.'); return; }
+  line.append(` · system default: ${models.system_default ? name(models.system_default) : 'none'} `);
+  const reset = el('button', 'btn', 'Use system default');
+  reset.onclick = () => setDefault(null);
+  line.append(reset);
+}
+async function setDefault(id) {
+  try { await api('PUT', 'api/v1/models/default', {model: id}); toast(id ? 'Default set' : 'Using the system default'); loadModels(); }
+  catch (e) { if ($('model-dlg').open) $('model-err').textContent = e.message; else toast(e.message); }
+}
+const VIS = {user: 'only me', organization: 'my organization', all: 'everyone'};
+function modelCard(m) {
+  const c = el('button', 'card');
+  const name = el('div', 'name', m.label || m.id);
+  if (m.id === models.default) name.append(el('span', 'chip', 'default'));
+  if (m.editable) name.append(el('span', 'chip own', 'yours'));
+  c.append(name, el('div', 'sub', `${m.provider} / ${m.model}`));
+  const meta = el('div', 'meta');
+  meta.append(el('span', 'chip', m.id));
+  if (m.tier) meta.append(el('span', 'chip', 'tier ' + m.tier));
+  if (m.context_window) meta.append(el('span', 'chip', tokensShort(m.context_window) + ' context'));
+  if (m.source === 'database') meta.append(el('span', 'chip', VIS[m.visibility] || m.visibility));
+  if (!m.enabled) meta.append(el('span', 'chip off', 'disabled'));
+  if (m.editable) meta.append(el('span', 'chip', m.has_api_key ? 'key ' + (m.api_key_hint || 'set') : (m.api_key_env ? '$' + m.api_key_env : 'no key')));
+  c.append(meta);
+  c.onclick = () => openModel(m);
+  return c;
+}
+let currentModel = null;
+function openModel(m) {
+  currentModel = m;
+  const editable = !m || m.editable, f = $('model-form');
+  f.hidden = !editable; $('model-readonly').hidden = editable; $('model-err').textContent = '';
+  $('model-title').textContent = m ? (m.label || m.id) : 'Add model';
+  $('model-src').textContent = !m ? 'yours' : (m.group === 'system' ? 'system' : m.group === 'shared' ? 'shared' : 'yours');
+  $('model-save').hidden = !editable; $('model-delete').hidden = !(m && m.editable);
+  $('model-make-default').hidden = !m || !m.enabled || m.id === models.default;
+  f.querySelector('option[value=all]').disabled = !me.scopes.includes('admin');
+  f.querySelector('option[value=organization]').disabled = !me.org;
+  if (!editable) {
+    $('model-note').textContent = m.group === 'system' ? 'Configured by operators: read-only. Its credentials stay on the server.'
+                                                       : 'Added by someone else and shared with you: read-only.';
+    const kv = $('model-readonly'); kv.textContent = '';
+    const add = (k, v) => v && kv.append(el('dt', '', k), el('dd', '', v));
+    add('Id', m.id); add('Provider', m.provider); add('Model', m.model); add('Description', m.description);
+    add('Tier', m.tier); add('Context window', m.context_window && Number(m.context_window).toLocaleString() + ' tokens');
+    add('Capabilities', (m.capabilities || []).join(', '));
+    if (m.source === 'database') add('Shared with', VIS[m.visibility]);
+  } else {
+    f.reset();
+    f.mid.disabled = !!m;
+    $('model-note').textContent = m ? 'Leave the API key empty to keep the stored one.' : 'Only you can change this model later.';
+    if (m) {
+      f.mid.value = m.id;
+      for (const k of ['label', 'provider', 'model', 'base_url', 'description']) f[k].value = m[k] || '';
+      f.visibility.value = m.visibility; f.enabled.value = String(m.enabled);
+      const rest = setRouting(f, m.options || {});
+      f.options.value = Object.keys(rest).length ? JSON.stringify(rest, null, 1) : '';
+      f.api_key.placeholder = m.has_api_key ? `Stored (${m.api_key_hint}); type to replace` : 'Stored encrypted';
+    } else f.api_key.placeholder = 'Stored encrypted';
+  }
+  $('model-dlg').showModal();
+}
+$('new-model').onclick = () => openModel(null);
+$('model-make-default').onclick = async () => { if (currentModel) { await setDefault(currentModel.id); if (!$('model-err').textContent) $('model-dlg').close(); } };
+$('model-save').onclick = async () => {
+  const f = $('model-form');
+  if (!f.reportValidity()) return;
+  const body = {provider: f.provider.value, model: f.model.value.trim(), label: f.label.value.trim(), description: f.description.value.trim(),
+                base_url: f.base_url.value.trim() || null, visibility: f.visibility.value, enabled: f.enabled.value === 'true'};
+  if (f.api_key.value) body.api_key = f.api_key.value;
+  let options = {};
+  if (f.options.value.trim()) {
+    try { options = JSON.parse(f.options.value); } catch (_) { $('model-err').textContent = 'Options must be JSON'; return; }
+    if (!options || typeof options !== 'object' || Array.isArray(options)) { $('model-err').textContent = 'Options must be a JSON object'; return; }
+  }
+  const clash = ROUTING_KEYS.filter(k => k in options);
+  if (clash.length) { $('model-err').textContent = `Set ${clash.join(', ')} in the Routing fields, not in the JSON`; return; }
+  body.options = {...options, ...getRouting(f)};
+  try {
+    if (currentModel) await api('PATCH', 'api/v1/models/' + encodeURIComponent(currentModel.id), body);
+    else await api('POST', 'api/v1/models', {id: f.mid.value.trim(), ...body});
+    $('model-dlg').close(); toast('Saved'); loadModels();
+  } catch (e) { $('model-err').textContent = e.message; }
+};
+$('model-delete').onclick = async () => {
+  if (!currentModel || !confirm(`Remove model ${currentModel.id}? Tasks that chose it will use the default.`)) return;
+  try { await api('DELETE', 'api/v1/models/' + encodeURIComponent(currentModel.id)); $('model-dlg').close(); toast('Removed'); loadModels(); }
+  catch (e) { $('model-err').textContent = e.message; }
+};
+
+// A model's routing options have their own inputs; the JSON textarea keeps the other options.
+const ROUTING_KEYS = ['tier', 'context_window', 'max_output', 'capabilities', 'cost_input', 'cost_output', 'cost_cached_input', 'speed', 'routable'];
+const ROUTING_INPUTS = ['tier', 'speed', 'context_window', 'max_output', 'cost_input', 'cost_output', 'cost_cached_input'];
+function setRouting(f, options) {
+  const rest = {};
+  for (const [k, v] of Object.entries(options)) if (!ROUTING_KEYS.includes(k)) rest[k] = v;
+  for (const k of ROUTING_INPUTS) f['r_' + k].value = options[k] == null ? '' : String(options[k]);
+  const r = options.routable;
+  f.r_routable.checked = !(r === false || ['false', '0', 'no', 'off'].includes(String(r).toLowerCase()));
+  const caps = Array.isArray(options.capabilities) ? options.capabilities : String(options.capabilities || '').split(/[\s,]+/);
+  f.querySelectorAll('input[name=r_cap]').forEach(c => { c.checked = caps.includes(c.value); });
+  return rest;
+}
+function getRouting(f) {
+  const out = {};
+  for (const k of ['tier', 'speed']) if (f['r_' + k].value) out[k] = f['r_' + k].value;
+  for (const k of ['context_window', 'max_output']) if (f['r_' + k].value !== '') out[k] = parseInt(f['r_' + k].value, 10);
+  for (const k of ['cost_input', 'cost_output', 'cost_cached_input']) if (f['r_' + k].value !== '') out[k] = Number(f['r_' + k].value);
+  const caps = [...f.querySelectorAll('input[name=r_cap]:checked')].map(c => c.value);
+  if (caps.length) out.capabilities = caps;
+  if (!f.r_routable.checked) out.routable = false;   // routable is the default: only "no" is written
+  return out;
+}
+const tokensShort = n => n >= 1e6 ? +(n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n);
+
+// ------------------------------------------------------------------------------------- usage and suggestions
+const isAdmin = () => me.scopes.includes('admin');
+const num = n => Number(n || 0).toLocaleString();
+const money = n => n == null ? '—' : (n > 0 && n < 0.01 ? Number(n).toFixed(4) : Number(n).toFixed(2));
+const pct = n => n == null ? '—' : Math.round(n * 100) + '%';
+function table(heads, rows, foot) {
+  const wrap = el('div', 'tblwrap'), t = el('table', 'tbl'), thead = el('thead'), hr = el('tr');
+  heads.forEach(([h, cls]) => hr.append(el('th', cls || '', h)));
+  thead.append(hr); t.append(thead);
+  const tb = el('tbody'); rows.forEach(r => tb.append(r)); t.append(tb);
+  if (foot) { const tf = el('tfoot'); tf.append(foot); t.append(tf); }
+  wrap.append(t); return wrap;
+}
+function row(cells, cls) {
+  const tr = el('tr', cls || '');
+  cells.forEach(([v, c, code]) => { const td = el('td', c || ''); if (code) td.append(el('code', '', v)); else td.textContent = v; tr.append(td); });
+  return tr;
+}
+let usageSeq = 0;
+async function loadUsage() {
+  const seq = ++usageSeq, days = Number($('usage-days').value), all = isAdmin() && $('usage-all').checked;
+  $('usage-all-box').hidden = !isAdmin();
+  const owner = $('usage-group').querySelector('option[value=owner]'); owner.disabled = owner.hidden = !all;
+  if (!all && $('usage-group').value === 'owner') $('usage-group').value = 'model';
+  const group = $('usage-group').value;
+  const to = new Date(), from = new Date(to.getTime() - days * 864e5);
+  const q = `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}&group=${group}&all=${all}`;
+  const [budget, usage, sugg] = await Promise.all([
+    api('GET', 'api/v1/usage/budget').catch(e => e), api('GET', 'api/v1/usage?' + q).catch(e => e),
+    isAdmin() ? api('GET', 'api/v1/usage/suggestions?days=' + days).catch(e => e) : Promise.resolve(null)]);
+  if (seq !== usageSeq) return;   // a newer request is on its way
+  renderBudget(budget); renderUsage(usage, group, all); renderSuggestions(sugg);
+}
+function renderBudget(b) {
+  const box = $('budget'); box.textContent = '';
+  $('usage-bar').hidden = b instanceof Error;
+  if (b instanceof Error) { box.append(el('span', 'd', b.status === 409 ? 'This server has no model router: no usage is recorded.' : 'Budget: ' + b.message)); return; }
+  const line = el('div', 'line'), unit = b.cost_unit || '';
+  if (b.budget == null) line.append(el('span', '', `Spent ${money(b.spent)} ${unit}`), el('span', 'chip', 'no budget'));
+  else {
+    const per = b.period ? ` this ${b.period}` : '';
+    const s = el('span'); s.append(el('b', '', `${money(b.spent)} ${unit}`), document.createTextNode(` spent of ${money(b.budget)} ${unit}${per}`));
+    line.append(s);
+  }
+  if (b.max_tier) line.append(el('span', 'chip', 'up to tier ' + b.max_tier));
+  line.append(el('span', 'chip ' + (b.routing ? 'ok' : 'lock'), b.routing ? 'routing on' : 'routing off'));
+  box.append(line);
+  if (b.budget != null) {
+    const ratio = b.budget > 0 ? b.spent / b.budget : 1;
+    const bar = el('div', 'bar' + (ratio >= 1 ? ' over' : ratio >= 0.8 ? ' warn' : '')), fillBar = el('i');
+    fillBar.style.width = Math.min(100, Math.max(0, ratio * 100)).toFixed(1) + '%';
+    bar.title = pct(ratio) + ' of the budget'; bar.append(fillBar); box.append(bar);
+  }
+}
+function renderUsage(u, group, all) {
+  const box = $('usage-table'); box.textContent = ''; $('usage-hint').textContent = '';
+  if (u instanceof Error) { if (u.status !== 409) box.append(el('div', 'empty', 'Usage: ' + u.message)); return; }
+  $('usage-hint').textContent = (all ? 'everyone' : 'yours') + ` · cost in ${u.cost_unit}`;
+  const rows = [...u.usage];
+  if (group === 'day') rows.sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  else rows.sort((a, b) => (b.cost || 0) - (a.cost || 0) || (b.calls || 0) - (a.calls || 0));
+  if (!rows.length) { box.append(el('div', 'empty', 'No model calls in this range.')); return; }
+  const sum = k => rows.reduce((t, r) => t + (Number(r[k]) || 0), 0);
+  const label = {model: 'Model', purpose: 'Purpose', day: 'Day', owner: 'User'}[group];
+  const cells = r => [[String(r[group] ?? ''), '', group !== 'day'], [num(r.calls), 'n'], [num(r.input_tokens), 'n'],
+                      [num(r.cached_tokens), 'n'], [num(r.output_tokens), 'n'], [money(r.cost), 'n']];
+  const total = rows.length > 1 ? row(cells({[group]: 'Total', calls: sum('calls'), input_tokens: sum('input_tokens'), cached_tokens: sum('cached_tokens'),
+                                             output_tokens: sum('output_tokens'), cost: sum('cost')}).map((c, i) => i ? c : [c[0]])) : null;
+  box.append(table([[label], ['Calls', 'n'], ['Input', 'n'], ['Cached', 'n'], ['Output', 'n'], ['Cost (' + u.cost_unit + ')', 'n']],
+                   rows.map(r => row(cells(r))), total));
+}
+function renderSuggestions(s) {
+  const sec = $('s-suggest'), box = $('suggest-table'); box.textContent = '';
+  sec.hidden = !s || (s instanceof Error && s.status === 409);
+  if (!s || sec.hidden) return;
+  if (s instanceof Error) { box.append(el('div', 'empty', 'Suggestions: ' + s.message)); return; }
+  $('suggest-hint').textContent = s.feedback === 'adjust' ? 'feedback: adjust · the router raises tiers itself' : 'feedback: suggest · nothing changes until you do';
+  const adj = Object.entries(s.adjusted || {});
+  $('suggest-adjusted').hidden = !adj.length;
+  $('suggest-adjusted').textContent = adj.length ? 'Adjusted now: ' + adj.map(([p, t]) => `${p} → ${t}`).join(', ') : '';
+  if (!s.rows.length) { box.append(el('div', 'empty', 'No calls or ratings in this range.')); return; }
+  const rows = [...s.rows].sort((a, b) => (!!b.suggestion - !!a.suggestion) || (b.calls - a.calls));
+  box.append(table([['Purpose'], ['Model'], ['Tier'], ['Calls', 'n'], ['Ratings', 'n'], ['Good', 'n'], ['Escalated', 'n'], ['Suggestion']],
+    rows.map(r => {
+      const tr = row([[r.purpose || ''], [r.model || '', '', true], [r.tier || '—'], [num(r.calls), 'n'], [`${num(r.up)} up · ${num(r.down)} down`, 'n'],
+                      [pct(r.good_rate), 'n'], [pct(r.escalation_rate) + (r.escalations ? ` (${num(r.escalations)})` : ''), 'n'],
+                      [r.suggestion || '', 'sugg']], r.suggestion ? 'hl' : '');
+      return tr;
+    })));
+}
+['usage-days', 'usage-group', 'usage-all'].forEach(id => $(id).onchange = () => loadUsage().catch(e => toast(e.message)));
+
+// ------------------------------------------------------------------------------------- plugins
+const STATUS = {ok: 'ok', error: 'bad', disabled: 'off', pending: 'warn'};
+let plugins = [];
+async function loadPlugins() {
+  const data = await api('GET', 'api/v1/plugins');
+  plugins = data.plugins;
+  $('reload-plugins').hidden = !data.can_reload;
+  const has = k => plugins.filter(p => p.kinds.includes(k));
+  fill('g-ptypes', 'n-ptypes', has('task_types'), p => pluginCard(p, 'task_types'), 'No plugin provides task types.');
+  fill('g-ptools', 'n-ptools', has('tools'), p => pluginCard(p, 'tools'), 'No plugin provides tools.');
+  fill('g-pmcp', 'n-pmcp', has('mcp'), p => pluginCard(p, 'mcp'), 'No plugin provides MCP servers.');
+  const other = plugins.filter(p => !p.kinds.length);
+  $('s-pother').hidden = !other.length;
+  fill('g-pother', 'n-pother', other, p => pluginCard(p, null), '');
+}
+function pluginCard(p, kind) {
+  const c = el('button', 'card');
+  const name = el('div', 'name', p.name);
+  if (p.source === 'user') name.append(el('span', 'chip own', 'yours'));
+  if (p.version) name.append(el('span', 'chip', 'v' + p.version));
+  c.append(name, el('div', 'sub', p.description || (p.source === 'user' ? 'your plugin' : 'system plugin')));
+  const meta = el('div', 'meta');
+  if (!p.enabled) meta.append(el('span', 'chip off', 'disabled'));
+  if (kind === 'task_types') p.task_types.forEach(t => meta.append(el('span', 'chip', t.name)));
+  if (kind === 'tools') meta.append(el('span', 'chip', p.tools.length + (p.tools.length === 1 ? ' tool' : ' tools')));
+  if (kind === 'mcp') p.mcp_endpoints.forEach(s => meta.append(el('span', 'chip ' + (STATUS[s.status] || ''),
+    `${s.name} · ${s.status === 'ok' ? s.tools.length + ' tools' : s.status}`)));
+  if (p.errors.length) meta.append(el('span', 'chip warn', p.errors.length + (p.errors.length === 1 ? ' problem' : ' problems')));
+  c.append(meta);
+  c.onclick = () => openPlugin(p);
+  return c;
+}
+function section(title, items, render) {
+  if (!items.length) return null;
+  const s = el('div', 'dsec'); s.append(el('h4', '', title));
+  const ul = el('ul', 'items'); items.forEach(i => ul.append(render(i))); s.append(ul);
+  return s;
+}
+// access: organizations/users null = no restriction, [] = nobody (a tool narrower than its plugin can end up empty)
+const restricted = a => !!(a && (a.organizations || a.users || (a.scopes && a.scopes.length)));
+function accessText(a, visibility) {
+  const bits = [];
+  if (a && a.organizations) bits.push(a.organizations.length ? 'organizations ' + a.organizations.join(', ') : 'no organization');
+  if (a && a.users) bits.push(a.users.length ? 'users ' + a.users.join(', ') : 'no user');
+  if (a && a.scopes && a.scopes.length) bits.push('scopes ' + a.scopes.join(', '));
+  return bits.length ? bits.join(' · ') : (VIS[visibility] || visibility);
+}
+function toolItem(t) {
+  const li = el('li'), row = el('div', 'row');
+  row.append(el('code', '', t.name), el('span', 'chip', t.handler), el('span', 'chip', 'effects ' + t.effects), el('span', 'chip', 'approval ' + t.approval));
+  if (restricted(t.access)) row.append(el('span', 'chip warn', accessText(t.access, t.visibility)));
+  li.append(row, el('span', 'd', t.summary));
+  return li;
+}
+function openPlugin(p) {
+  $('plugin-title').textContent = p.name; $('plugin-src').textContent = p.source === 'user' ? 'yours' : 'system';
+  $('plugin-desc').textContent = p.description || '';
+  const kv = $('plugin-kv'); kv.textContent = '';
+  const add = (k, v) => v && kv.append(el('dt', '', k), el('dd', '', v));
+  add('Status', p.enabled ? 'enabled' : 'disabled'); add('Version', p.version); add('Author', p.author);
+  add('Provides', p.kinds.map(k => ({task_types: 'task types', tools: 'tools', mcp: 'MCP endpoints', skills: 'skills'})[k]).join(', ') || 'nothing');
+  add('Who may use it', p.source === 'user' ? 'only you' : accessText(p.access, 'all'));
+  const parts = $('plugin-parts'); parts.textContent = '';
+  const blocks = [
+    section('Task types', p.task_types, t => {
+      const li = el('li'), row = el('div', 'row'); row.append(el('code', '', t.name));
+      for (const f of ['AGENTS.md', 'WORKFLOW.md']) row.append(el('span', 'chip' + (t.files.includes(f) ? '' : ' lock'), t.files.includes(f) ? f : f + ' (default)'));
+      li.append(row); return li;
+    }),
+    section('Tools', p.tools, toolItem),
+    section('MCP endpoints', p.mcp_endpoints, s => {
+      const li = el('li'), row = el('div', 'row');
+      row.append(el('code', '', s.name), el('span', 'chip', s.transport), el('span', 'chip ' + (STATUS[s.status] || ''), s.status));
+      if (s.server) row.append(el('span', 'chip', s.server + (s.server_version ? ' ' + s.server_version : '')));
+      li.append(row, el('span', 'd', s.target));
+      if (s.error) li.append(el('span', 'e', s.error));
+      if (s.tools.length) { const ul = el('ul', 'items'); s.tools.forEach(t => ul.append(toolItem(t))); li.append(ul); }
+      return li;
+    }),
+    section('Skills', p.skills || [], k => { const li = el('li'), row = el('div', 'row'); row.append(el('code', '', k.name), el('span', 'chip', k.tool)); li.append(row, el('span', 'd', k.description)); return li; }),
+    section('Builtin handlers', p.handlers, h => { const li = el('li'); li.append(el('code', '', h)); return li; }),
+    section('Problems', p.errors, e => el('li', 'e', e)),
+  ];
+  blocks.forEach(b => b && parts.append(b));
+  $('plugin-dlg').showModal();
+}
+$('reload-plugins').onclick = async () => {
+  const b = $('reload-plugins'); b.disabled = true;
+  try {
+    const r = await api('POST', 'api/v1/plugins/reload');
+    toast(r.errors.length ? `Reloaded with ${r.errors.length} problem(s)` : 'Reloaded'); await loadPlugins();
+  } catch (e) { toast(e.message); } finally { b.disabled = false; }
+};
+
+// ------------------------------------------------------------------------------------- tools
+let tools = {tools: [], groups: []};
+async function loadTools() {
+  tools = await api('GET', 'api/v1/tools');
+  const box = $('g-tgroups'); box.textContent = ''; $('n-tgroups').textContent = tools.groups.length ? String(tools.groups.length) : '';
+  if (!tools.groups.length) box.append(el('div', 'empty', 'No plugin or MCP endpoint provides tools you can use.'));
+  else {
+    const ul = el('ul', 'items wide');
+    for (const g of tools.groups) {
+      const li = el('li', g.enabled ? '' : 'off'), r = el('div', 'row split'), l = el('span', 'row');
+      l.append(el('b', '', g.name), el('span', 'chip', g.target === 'mcp' ? 'MCP endpoint' : 'plugin'),
+               el('span', 'chip', g.tools + (g.tools === 1 ? ' tool' : ' tools')));
+      if (g.mine) l.append(el('span', 'chip own', 'yours'));
+      if (g.plugin) l.append(el('span', 'chip', 'from ' + groupName('plugin', g.plugin)));
+      r.append(l, toggle(g.enabled, `Use the tools of this ${g.target === 'mcp' ? 'endpoint' : 'plugin'} in your tasks`,
+                         on => setToolPref(g.target, g.id, on), loadTools));
+      li.append(r); ul.append(li);
+    }
+    box.append(ul);
+  }
+  renderToolList();
+}
+const setToolPref = (target, id, enabled) => api('PUT', 'api/v1/tools/prefs', {target, id, enabled});
+const groupName = (target, id) => (tools.groups.find(g => g.target === target && g.id === id) || {}).name || id;
+function toolSource(t) {
+  if (t.kind === 'mcp') return 'MCP ' + groupName('mcp', t.endpoint);
+  if (t.kind === 'plugin') return 'plugin ' + groupName('plugin', t.plugin);
+  return {control: 'agent', core: 'agent', system: 'system', database: t.mine ? 'yours' : 'shared'}[t.kind] || t.kind;
+}
+function renderToolList() {
+  const q = $('tools-filter').value.trim().toLowerCase(), k = $('tools-kind').value;
+  const shown = tools.tools.filter(t => (!k || (k === 'off' ? !t.active : k === 'builtin' ? ['control', 'core', 'system'].includes(t.kind) : t.kind === k))
+                                        && (!q || [t.name, toolSource(t), t.summary].join(' ').toLowerCase().includes(q)));
+  $('n-tools').textContent = tools.tools.length ? String(tools.tools.length) : '';
+  const box = $('g-tools'); box.textContent = '';
+  if (!shown.length) { box.append(el('div', 'empty', tools.tools.length ? 'No tool matches.' : 'No tools.')); return; }
+  const ul = el('ul', 'items wide');
+  for (const t of shown) {
+    const li = el('li', t.active ? '' : 'off'), r = el('div', 'row split'), l = el('span', 'row');
+    l.append(el('code', '', t.name), el('span', 'chip' + (t.mine ? ' own' : ''), toolSource(t)),
+             el('span', 'chip', 'effects ' + t.effects), el('span', 'chip', 'approval ' + t.approval));
+    if (t.enabled && !t.active) l.append(el('span', 'chip off', 'off with its ' + (t.endpoint && !tools.groups.find(g => g.target === 'mcp' && g.id === t.endpoint).enabled ? 'endpoint' : 'plugin')));
+    let right;
+    if (t.switchable) {
+      right = toggle(t.enabled, 'Use this tool in your tasks', on => setToolPref('tool', t.name, on), loadTools);
+      if (t.enabled && !t.active) right.querySelector('input').disabled = true;
+    } else right = el('span', 'chip lock', 'always on');
+    r.append(l, right); li.append(r, el('span', 'd', t.summary)); ul.append(li);
+  }
+  box.append(ul);
+}
+$('tools-filter').oninput = renderToolList; $('tools-kind').onchange = renderToolList;
+
+// ------------------------------------------------------------------------------------- MCP
+let endpoints = {endpoints: [], can_add: false}, mcpTools = [];
+async function loadMcp() {
+  [endpoints, mcpTools] = await Promise.all([api('GET', 'api/v1/mcp/endpoints'), api('GET', 'api/v1/mcp/tools').then(r => r.tools)]);
+  $('new-endpoint').disabled = !endpoints.can_add;
+  const by = g => endpoints.endpoints.filter(e => e.group === g);
+  fill('g-eplugin', 'n-eplugin', by('plugin'), endpointCard, 'No plugin installs an MCP endpoint.');
+  fill('g-eshared', 'n-eshared', by('shared'), endpointCard, 'Nobody shares an MCP endpoint with you.');
+  fill('g-emine', 'n-emine', by('mine'), endpointCard, 'You have not added an MCP endpoint. “Add endpoint” connects one and installs its tools.');
+  renderTools();
+}
+function endpointCard(e) {
+  const c = el('button', 'card');
+  const name = el('div', 'name', e.label || e.name);
+  if (e.editable) name.append(el('span', 'chip own', 'yours'));
+  c.append(name, el('div', 'sub', e.group === 'plugin' ? `plugin ${e.plugin} · ${e.target}` : e.target));
+  const meta = el('div', 'meta');
+  meta.append(el('span', 'chip ' + (STATUS[e.status] || ''), e.status === 'ok' ? `${e.tools.length} tools` : e.status));
+  meta.append(el('span', 'chip', accessText(e.access, e.visibility)));
+  if (!e.enabled) meta.append(el('span', 'chip off', 'disabled'));
+  if (e.group === 'shared' && e.owner) meta.append(el('span', 'chip', 'by ' + e.owner));
+  c.append(meta);
+  c.onclick = () => openEndpoint(e);
+  return c;
+}
+function renderTools() {
+  const q = $('tool-filter').value.trim().toLowerCase(), g = $('tool-group').value;
+  const shown = mcpTools.filter(t => (!g || t.group === g) && (!q || [t.model_name, t.id, t.summary].join(' ').toLowerCase().includes(q)));
+  $('n-mtools').textContent = mcpTools.length ? String(mcpTools.length) : '';
+  const box = $('g-mtools'); box.textContent = '';
+  if (!shown.length) { box.append(el('div', 'empty', mcpTools.length ? 'No tool matches.' : 'No MCP tools yet.')); return; }
+  const ul = el('ul', 'items wide');
+  for (const t of shown) {
+    const li = el('li', 'click'), row = el('div', 'row');
+    row.append(el('code', '', t.model_name), el('span', 'chip', t.endpoint), el('span', 'chip' + (t.group === 'mine' ? ' own' : ''), {plugin: 'plugin', shared: 'shared', mine: 'yours'}[t.group]),
+               el('span', 'chip', 'effects ' + t.effects), el('span', 'chip', 'approval ' + t.approval), el('span', 'chip', accessText(t.access, t.visibility)));
+    if (!t.enabled || t.endpoint_enabled === false) row.append(el('span', 'chip off', 'disabled'));
+    li.append(row, el('span', 'd', t.summary));
+    li.onclick = () => openTool(t);
+    ul.append(li);
+  }
+  box.append(ul);
+}
+$('tool-filter').oninput = renderTools; $('tool-group').onchange = renderTools;
+
+let currentEndpoint = null;
+async function openEndpoint(e) {
+  if (e && e.group !== 'plugin') { try { e = {...e, ...(await api('GET', 'api/v1/mcp/endpoints/' + encodeURIComponent(e.id)))}; } catch (x) { toast(x.message); return; } }
+  currentEndpoint = e;
+  const editable = !e || e.editable, f = $('endpoint-form');
+  f.hidden = !editable; $('endpoint-kv').hidden = editable; $('endpoint-err').textContent = '';
+  $('endpoint-title').textContent = e ? (e.label || e.name) : 'Add MCP endpoint';
+  $('endpoint-src').textContent = !e ? 'yours' : ({plugin: 'plugin', shared: 'shared', mine: 'yours'})[e.group];
+  $('endpoint-save').hidden = !editable; $('endpoint-delete').hidden = $('endpoint-refresh').hidden = !(e && e.editable);
+  f.querySelector('option[value=all]').disabled = !me.scopes.includes('admin');
+  f.querySelector('option[value=organization]').disabled = !me.org;
+  const kv = $('endpoint-kv'); kv.textContent = '';
+  const add = (k, v) => v && kv.append(el('dt', '', k), el('dd', '', v));
+  if (!editable) {
+    $('endpoint-note').textContent = e.group === 'plugin' ? `Installed by the plugin ${e.plugin}: read-only.` : 'Added by someone else and shared with you: read-only.';
+    add('Id', e.id); add('Endpoint', e.target); add('Transport', e.transport); add('Who may use it', accessText(e.access, e.visibility));
+    add('Status', e.status + (e.error ? ': ' + e.error : '')); add('Server', e.server && (e.server + (e.server_version ? ' ' + e.server_version : '')));
+    add('Description', e.description);
+  } else {
+    f.reset(); f.ename.disabled = !!e;
+    $('endpoint-note').textContent = e ? 'Saving asks the endpoint for its tools again. Leave the headers empty to keep the stored ones.'
+                                       : 'The agent connects to it now and installs its tools, named <name>__<tool>. They ask for approval before each call.';
+    if (e) {
+      f.ename.value = e.name; f.label.value = e.label === e.name ? '' : e.label; f.url.value = e.url || e.target;
+      f.visibility.value = e.visibility; f.enabled.value = String(e.enabled); f.approval.value = e.approval || '';
+      f.effects.value = e.effects || ''; f.tools.value = (e.tools_filter || []).join(', '); f.timeout.value = e.timeout; f.description.value = e.description || '';
+      const names = Object.entries(e.headers || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+      f.headers.placeholder = names ? `Stored: ${names}. Type to replace them all.` : 'Authorization: Bearer …';
+      if (e.status !== 'ok' && e.error) $('endpoint-err').textContent = e.error;
+    }
+  }
+  const parts = $('endpoint-parts'); parts.textContent = '';
+  if (e) {
+    const tools = mcpTools.filter(t => t.endpoint === e.id);
+    const block = section('Tools', tools, t => { const li = el('li', 'click'), row = el('div', 'row'); row.append(el('code', '', t.name), el('span', 'chip', 'approval ' + t.approval));
+      if (!t.enabled) row.append(el('span', 'chip off', 'disabled')); li.append(row, el('span', 'd', t.summary)); li.onclick = () => openTool(t); return li; });
+    if (block) parts.append(block);
+    const problems = section('Problems', e.problems || [], p => el('li', 'e', p)); if (problems) parts.append(problems);
+  }
+  $('endpoint-dlg').showModal();
+}
+function parseHeaders(text) {
+  const out = {};
+  for (const line of text.split('\n').map(l => l.trim()).filter(Boolean)) {
+    const i = line.indexOf(':'); if (i < 1) throw new Error('Headers: one "Name: value" per line');
+    out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return out;
+}
+$('new-endpoint').onclick = () => openEndpoint(null);
+$('endpoint-save').onclick = async () => {
+  const f = $('endpoint-form'); if (!f.reportValidity()) return;
+  let headers; try { headers = parseHeaders(f.headers.value); } catch (x) { $('endpoint-err').textContent = x.message; return; }
+  const body = {url: f.url.value.trim(), label: f.label.value.trim(), description: f.description.value.trim(), visibility: f.visibility.value,
+                enabled: f.enabled.value === 'true', approval: f.approval.value || null, effects: f.effects.value || null,
+                tools: f.tools.value.split(',').map(t => t.trim()).filter(Boolean), timeout: Number(f.timeout.value) || 60};
+  if (Object.keys(headers).length) body.headers = headers;
+  const b = $('endpoint-save'); b.disabled = true; $('endpoint-err').textContent = 'Connecting…';
+  try {
+    const r = currentEndpoint ? await api('PATCH', 'api/v1/mcp/endpoints/' + encodeURIComponent(currentEndpoint.id), body)
+                              : await api('POST', 'api/v1/mcp/endpoints', {name: f.ename.value.trim(), ...body});
+    await loadMcp();
+    if (r.status === 'ok') { $('endpoint-dlg').close(); toast(`${r.name}: ${r.tools.length} tools installed`); }
+    else { currentEndpoint = endpoints.endpoints.find(x => x.id === r.id); await openEndpoint(currentEndpoint); $('endpoint-err').textContent = `Saved, but: ${r.error || r.status}`; }
+  } catch (x) { $('endpoint-err').textContent = x.message; } finally { b.disabled = false; }
+};
+$('endpoint-refresh').onclick = async () => {
+  try {
+    const r = await api('POST', `api/v1/mcp/endpoints/${encodeURIComponent(currentEndpoint.id)}/refresh`);
+    await loadMcp(); await openEndpoint(endpoints.endpoints.find(x => x.id === r.id));
+    $('endpoint-err').textContent = r.status === 'ok' ? '' : (r.error || r.status); toast(r.status === 'ok' ? `${r.tools.length} tools` : 'Refresh failed');
+  } catch (x) { $('endpoint-err').textContent = x.message; }
+};
+$('endpoint-delete').onclick = async () => {
+  if (!currentEndpoint || !confirm(`Remove MCP endpoint ${currentEndpoint.name} and its tools?`)) return;
+  try { await api('DELETE', 'api/v1/mcp/endpoints/' + encodeURIComponent(currentEndpoint.id)); $('endpoint-dlg').close(); toast('Removed'); loadMcp(); }
+  catch (x) { $('endpoint-err').textContent = x.message; }
+};
+
+let currentTool = null;
+function openTool(t) {
+  currentTool = t;
+  $('tool-title').textContent = t.model_name || t.name; $('tool-src').textContent = ({plugin: 'plugin', shared: 'shared', mine: 'yours'})[t.group];
+  $('tool-desc').textContent = t.description || t.summary; $('tool-err').textContent = '';
+  const kv = $('tool-kv'); kv.textContent = '';
+  const add = (k, v) => v && kv.append(el('dt', '', k), el('dd', '', v));
+  add('Id', t.id); add('Endpoint', t.endpoint); add('MCP name', t.mcp_name); add('Effects', t.effects); add('Approval', t.approval);
+  if (t.model_name && t.model_name !== t.name) add('Called in your tasks', `${t.model_name} (another tool you can use is named ${t.name})`);
+  add('Who may use it', accessText(t.access, t.visibility) + (t.inherits_visibility ? ' (as its endpoint)' : ''));
+  if (t.input_schema) add('Arguments', Object.keys((t.input_schema.properties) || {}).join(', ') || 'none');
+  const f = $('tool-form'); f.hidden = !t.editable; $('tool-save').hidden = !t.editable;
+  if (t.editable) {
+    f.enabled.value = String(t.enabled); f.visibility.value = t.inherits_visibility ? '' : t.visibility; f.approval.value = t.approval === 'deny' ? 'deny' : 'ask';
+    f.querySelector('option[value=all]').disabled = !me.scopes.includes('admin'); f.querySelector('option[value=organization]').disabled = !me.org;
+  }
+  $('tool-dlg').showModal();
+}
+$('tool-save').onclick = async () => {
+  const f = $('tool-form');
+  try {
+    await api('PATCH', 'api/v1/mcp/tools/' + encodeURIComponent(currentTool.id),
+              {enabled: f.enabled.value === 'true', visibility: f.visibility.value, approval: f.approval.value});
+    $('tool-dlg').close(); toast('Saved'); loadMcp();
+  } catch (x) { $('tool-err').textContent = x.message; }
+};
+
+// ------------------------------------------------------------------------------------- knowledge
+let knowledge = {sources: []};
+async function loadKnowledge() {
+  knowledge = await api('GET', 'api/v1/knowledge');
+  $('new-kservice').disabled = !knowledge.can_add;
+  const note = $('knowledge-note');
+  note.hidden = knowledge.can_add;
+  note.textContent = 'Connecting your own services is off: an operator allows their hosts with [knowledge] allowed_hosts in agent.cfg.';
+  const system = knowledge.sources.filter(s => s.group === 'system'), mine = knowledge.sources.filter(s => s.group === 'mine');
+  const box = $('g-ksys'); box.textContent = '';
+  if (system.length) system.forEach(s => box.append(sourceBlock(s)));
+  else box.append(el('div', 'empty', 'No knowledge service is configured ([knowledge] url in agent.cfg).'));
+  const own = $('g-kmineservices'); own.textContent = ''; $('n-kservices').textContent = mine.length ? String(mine.length) : '';
+  if (mine.length) mine.forEach(s => own.append(sourceBlock(s)));
+  else own.append(el('div', 'empty', knowledge.can_add ? 'You have not connected a knowledge service. “Connect service” adds one with its URL and token.'
+                                                         : 'None.'));
+  renderKSearch();
+}
+// Search: which search tools your tasks get, kb_research's preset, and the knowledge bases in use.
+const KTOOLS = {auto: 'Auto: kb_search and kb_research, the model decides', kb_search: 'kb_search only: fast, no model calls in the KB',
+                kb_research: 'kb_research only: always the KB\'s agentic search'};
+const KPRESETS = {model: 'The model chooses (auto if it does not)', kb: 'The KB\'s default (smart, or deep without web)',
+                  auto: 'auto: route to documents, FAQ, wiki, records, memory', quick: 'quick: one rewritten search, reranked',
+                  deep: 'deep: a multi-step search loop', wiki: 'wiki: the wiki first', smart: 'smart: deep plus the web'};
+const KGETS = {auto: 'kb_search, kb_research, kb_grep and kb_read', kb_search: 'kb_search, kb_grep and kb_read',
+               kb_research: 'kb_research, kb_grep and kb_read'};
+function fillOptions(sel, labels, def, chosen) {
+  sel.textContent = '';
+  const d = el('option', '', `Default: ${def} (agent.cfg)`); d.value = ''; sel.append(d);
+  for (const [value, text] of Object.entries(labels)) { const o = el('option', '', text); o.value = value; sel.append(o); }
+  sel.value = chosen || '';
+}
+function renderKSearch() {
+  const k = knowledge, section = $('ksearch');
+  section.hidden = !k.options;
+  if (!k.options) return;
+  const tools = $('ksearch-tools'), preset = $('ksearch-preset'), chosen = k.chosen || {};
+  fillOptions(tools, KTOOLS, k.defaults.tools, chosen.tools);
+  fillOptions(preset, KPRESETS, k.defaults.research_preset, chosen.research_preset);
+  tools.disabled = !k.can_set_options;
+  preset.disabled = !k.can_set_options || k.options.tools === 'kb_search';
+  $('ksearch-note').textContent = `Your tasks get ${KGETS[k.options.tools]}.`
+    + (k.options.tools === 'kb_search' ? ' kb_research is not offered, so its mode does not apply.'
+       : k.options.research_preset === 'model' ? ' kb_research uses the preset the model asks for.'
+       : k.options.research_preset === 'kb' ? ' kb_research uses the knowledge service\'s default preset.'
+       : ` kb_research always runs the ${k.options.research_preset} preset.`)
+    + (k.can_set_options ? '' : ' This agent has no store for your choices: agent.cfg\'s apply.');
+  const box = $('ksearch-inuse'); box.textContent = '';
+  if (!k.in_use.length) { box.append(document.createTextNode('No knowledge base is in use: switch one on below.')); return; }
+  box.append(document.createTextNode(`In use (${k.in_use.length}${k.in_use.length >= k.max_catalog ? `, the first ${k.max_catalog}` : ''}):`));
+  for (const kb of k.in_use) { const c = el('span', 'chip', kb.id); c.title = kb.name; box.append(c); }
+  box.append(el('span', 'hint', 'a task type may narrow these'));
+}
+for (const sel of [$('ksearch-tools'), $('ksearch-preset')]) sel.onchange = async () => {
+  sel.disabled = true;
+  try { await api('PUT', 'api/v1/knowledge/options', {[sel.name]: sel.value || null}); toast('Saved'); }
+  catch (x) { toast(x.message); }
+  await loadKnowledge();
+};
+// A switch that saves at once; on failure it goes back and says why.
+function toggle(checked, title, save, reload = loadKnowledge) {
+  const label = el('label', 'toggle'), box = el('input');
+  box.type = 'checkbox'; box.checked = checked; label.title = title;
+  box.onchange = async () => {
+    box.disabled = true;
+    try { await save(box.checked); toast(box.checked ? 'Switched on' : 'Switched off'); await reload(); }
+    catch (x) { box.checked = !box.checked; toast(x.message); } finally { box.disabled = false; }
+  };
+  label.append(box, document.createTextNode('use'));
+  return label;
+}
+const setPref = (source, kb, enabled) => api('PUT', 'api/v1/knowledge/prefs', {source, kb, enabled});
+function sourceBlock(s) {
+  const ul = el('ul', 'items wide ksource');
+  const head = el('li', s.enabled ? '' : 'off'), row = el('div', 'row split'), left = el('span'), right = el('span', 'row');
+  const name = el('b', '', s.label || s.name);
+  left.append(name);
+  const chips = el('div', 'row');
+  chips.append(el('span', 'chip ' + (STATUS[s.status] || ''), s.status === 'ok' ? `${s.bases.length} knowledge bases` : s.status));
+  if (s.group === 'mine') { chips.append(el('span', 'chip', s.url + (s.base_path && s.base_path !== '/kb' ? ' · ' + s.base_path : '')), el('span', 'chip', '@' + s.name));
+    if (s.token_hint) chips.append(el('span', 'chip lock', 'token ' + s.token_hint)); }
+  if (!s.enabled) chips.append(el('span', 'chip off', 'switched off'));
+  right.append(toggle(s.enabled, s.group === 'system' ? 'Use the system knowledge service in your tasks' : 'Use this service in your tasks',
+                      on => setPref(s.id, null, on)));
+  if (s.editable) { const edit = el('button', 'btn sm', 'Edit'); edit.onclick = () => openKService(s); right.append(edit); }
+  row.append(left, right); head.append(row, chips);
+  if (s.error) head.append(el('span', 'e', s.error));
+  ul.append(head);
+  for (const kb of s.bases) {
+    const li = el('li', kb.enabled && s.enabled ? '' : 'off'), r = el('div', 'row split'), l = el('span');
+    l.append(el('span', '', kb.name || kb.ref), document.createTextNode(' '), el('code', '', kb.id));
+    const t = toggle(kb.enabled, 'Use this knowledge base in your tasks', on => setPref(s.id, kb.ref, on));
+    if (!s.enabled) t.querySelector('input').disabled = true;
+    r.append(l, t); li.append(r);
+    const meta = [kb.knowledge_count != null ? `${kb.knowledge_count} items` : '', kb.description].filter(Boolean).join(' · ');
+    if (meta) li.append(el('span', 'd', meta));
+    ul.append(li);
+  }
+  if (s.status === 'ok' && !s.bases.length) ul.append(el('li', '', 'No knowledge base you can read here yet.'));
+  return ul;
+}
+let currentKService = null;
+function openKService(s) {
+  currentKService = s;
+  const f = $('kservice-form'); f.reset(); f.kname.disabled = !!s; $('kservice-err').textContent = '';
+  $('kservice-title').textContent = s ? (s.label || s.name) : 'Connect a knowledge service';
+  $('kservice-delete').hidden = !s;
+  const hosts = (knowledge.allowed_hosts || []).join(', ');
+  $('kservice-note').textContent = (s ? 'Leave the token empty to keep the stored one. ' : 'An AgenticWF knowledge service (its API at <URL><base path>/api/v1), reached with a bearer token such as a personal KB\'s token. ')
+    + (hosts ? `Allowed hosts: ${hosts}.` : '') + (knowledge.can_store_tokens ? '' : ' No secrets key is configured: a token cannot be stored.');
+  if (s) {
+    f.kname.value = s.name; f.label.value = s.label === s.name ? '' : s.label; f.url.value = s.url; f.base_path.value = s.base_path || '/kb';
+    f.enabled.value = String(s.enabled);
+    f.token.placeholder = s.token_hint ? `Stored: ${s.token_hint}. Type to replace it.` : 'Bearer token (stored encrypted, never shown again)';
+    if (s.error) $('kservice-err').textContent = s.error;
+  }
+  $('kservice-dlg').showModal();
+}
+$('new-kservice').onclick = () => openKService(null);
+$('kservice-save').onclick = async () => {
+  const f = $('kservice-form'); if (!f.reportValidity()) return;
+  const body = {url: f.url.value.trim(), base_path: f.base_path.value.trim(), label: f.label.value.trim(), enabled: f.enabled.value === 'true'};
+  if (f.token.value) body.token = f.token.value;
+  const b = $('kservice-save'); b.disabled = true; $('kservice-err').textContent = 'Connecting…';
+  try {
+    const r = currentKService ? await api('PATCH', 'api/v1/knowledge/services/' + encodeURIComponent(currentKService.id), body)
+                              : await api('POST', 'api/v1/knowledge/services', {name: f.kname.value.trim(), ...body});
+    await loadKnowledge();
+    if (r.status === 'ok') { $('kservice-dlg').close(); toast(`${r.name}: ${r.bases.length} knowledge bases`); }
+    else { currentKService = r; openKService(r); $('kservice-err').textContent = `Saved, but: ${r.error || r.status}`; }
+  } catch (x) { $('kservice-err').textContent = x.message; } finally { b.disabled = false; }
+};
+$('kservice-delete').onclick = async () => {
+  if (!currentKService || !confirm(`Disconnect knowledge service ${currentKService.name}? Its knowledge bases stay where they are.`)) return;
+  try { await api('DELETE', 'api/v1/knowledge/services/' + encodeURIComponent(currentKService.id)); $('kservice-dlg').close(); toast('Disconnected'); loadKnowledge(); }
+  catch (x) { $('kservice-err').textContent = x.message; }
+};
+
+// ------------------------------------------------------------------------------------- skills
+async function loadSkills() {
+  const data = await api('GET', 'api/v1/skills');
+  $('new-skill').disabled = !data.can_add;
+  const by = g => data.skills.filter(k => k.group === g);
+  fill('g-ksystem', 'n-ksystem', by('system'), skillCard, 'No system skills.');
+  fill('g-kplugin', 'n-kplugin', by('plugin'), skillCard, 'No plugin provides skills.');
+  fill('g-kshared', 'n-kshared', by('shared'), skillCard, 'Nobody shares a skill with you.');
+  fill('g-kmine', 'n-kmine', by('mine'), skillCard, data.can_add ? 'You have no skills yet. “New skill” writes one.' : 'You have no skills.');
+}
+function skillCard(k) {
+  const c = el('button', 'card'), name = el('div', 'name', k.qualified);
+  if (k.group === 'mine') name.append(el('span', 'chip own', 'yours'));
+  c.append(name, el('div', 'sub', k.description));
+  const meta = el('div', 'meta');
+  meta.append(el('span', 'chip', k.tool));
+  if (k.tools.length) meta.append(el('span', 'chip', 'tools ' + k.tools.join(', ')));
+  if (k.group !== 'system' && k.group !== 'plugin') meta.append(el('span', 'chip', accessText(k.access, k.visibility)));
+  if (k.group === 'mine' && !k.editable) meta.append(el('span', 'chip lock', 'file in your sandbox'));
+  if (k.group === 'shared' && k.owner) meta.append(el('span', 'chip', 'by ' + k.owner));
+  if (!k.enabled) meta.append(el('span', 'chip off', 'disabled'));
+  c.append(meta);
+  c.onclick = () => openSkill(k);
+  return c;
+}
+let currentSkill = null;
+async function openSkill(k) {
+  if (k) { try { k = await api('GET', 'api/v1/skills/' + encodeURIComponent(k.id)); } catch (x) { toast(x.message); return; } }
+  currentSkill = k;
+  const editable = !k || k.editable, f = $('skill-form');
+  f.hidden = !editable; $('skill-text-box').hidden = editable; $('skill-err').textContent = '';
+  $('skill-title').textContent = k ? k.qualified : 'New skill';
+  $('skill-src').textContent = !k ? 'yours' : ({system: 'system', plugin: 'plugin', shared: 'shared', mine: 'yours'})[k.group];
+  $('skill-save').hidden = !editable; $('skill-delete').hidden = !(k && k.editable);
+  const kv = $('skill-kv'); kv.textContent = '';
+  const add = (key, v) => v && kv.append(el('dt', '', key), el('dd', '', v));
+  if (k) {
+    add('Id', k.id); add('Called', k.tool);
+    if (!editable) { add('Description', k.description); add('Tools while it runs', k.tools.join(', ') || 'the task’s, matched to the skill'); }
+    if (k.approval !== 'auto') add('Approval', k.approval);
+  }
+  if (!editable) {
+    $('skill-note').textContent = k.group === 'mine' ? 'A SKILL.md in your sandbox: change it there.'
+      : k.group === 'shared' ? 'Added by someone else and shared with you: read-only. The agent asks you before it loads it.'
+      : 'Installed by operators: read-only.';
+    $('skill-text').value = k.instructions || '';
+  } else {
+    f.reset(); f.name.disabled = !!k;
+    f.querySelector('option[value=all]').disabled = !me.scopes.includes('admin');
+    f.querySelector('option[value=organization]').disabled = !me.org;
+    $('skill-note').textContent = k ? '' : 'The agent sees the name and description; it reads the instructions when it uses the skill.';
+    if (k) {
+      f.name.value = k.name; f.description.value = k.description; f.instructions.value = k.instructions || '';
+      f.tools.value = k.tools.join(', '); f.visibility.value = k.visibility; f.enabled.value = String(k.enabled);
+    }
+  }
+  renderSkillFiles(k, editable);
+  $('skill-dlg').showModal();
+}
+function renderSkillFiles(k, editable) {
+  const files = (k && k.files) || [];
+  $('skill-files-sec').hidden = !k && !editable;
+  $('skill-file-form').hidden = !(k && editable); $('skill-file-view-box').hidden = true;
+  $('skill-files-note').textContent = !k ? 'Save the skill first, then add its files.'
+    : editable ? 'References and templates its instructions name; the agent reads them with read_skill_file. Kept in the database.'
+    : files.length ? '' : 'No files.';
+  const ul = $('skill-files'); ul.textContent = ''; ul.hidden = !files.length;
+  for (const path of files) {
+    const li = el('li', 'click'); li.append(el('code', '', path));
+    li.onclick = () => openSkillFile(k, path, editable);
+    ul.append(li);
+  }
+  $('skill-file-path').value = ''; $('skill-file-content').value = ''; $('skill-file-path').disabled = false;
+  $('skill-file-delete').hidden = true;
+}
+async function openSkillFile(k, path, editable) {
+  let r;
+  try { r = await api('GET', `api/v1/skills/${encodeURIComponent(k.id)}/files/${path.split('/').map(encodeURIComponent).join('/')}`); }
+  catch (x) { $('skill-err').textContent = x.message; return; }
+  if (editable) {
+    $('skill-file-path').value = path; $('skill-file-path').disabled = true;
+    $('skill-file-content').value = r.content; $('skill-file-delete').hidden = false;
+  } else { $('skill-file-view-box').hidden = false; $('skill-file-view').value = r.content; }
+}
+const skillFileUrl = path => `api/v1/skills/${encodeURIComponent(currentSkill.id)}/files/${path.split('/').map(encodeURIComponent).join('/')}`;
+$('skill-file-new').onclick = () => renderSkillFiles(currentSkill, true);
+$('skill-file-save').onclick = async () => {
+  const path = $('skill-file-path').value.trim();
+  if (!path) { $('skill-err').textContent = 'A file needs a path'; return; }
+  try {
+    currentSkill = await api('PUT', skillFileUrl(path), {content: $('skill-file-content').value});
+    $('skill-err').textContent = ''; toast('File saved'); renderSkillFiles(currentSkill, true);
+  } catch (x) { $('skill-err').textContent = x.message; }
+};
+$('skill-file-delete').onclick = async () => {
+  const path = $('skill-file-path').value.trim();
+  if (!path || !confirm(`Delete ${path}?`)) return;
+  try {
+    await api('DELETE', skillFileUrl(path));
+    currentSkill = await api('GET', 'api/v1/skills/' + encodeURIComponent(currentSkill.id));
+    toast('File deleted'); renderSkillFiles(currentSkill, true);
+  } catch (x) { $('skill-err').textContent = x.message; }
+};
+$('new-skill').onclick = () => openSkill(null);
+$('skill-save').onclick = async () => {
+  const f = $('skill-form');
+  if (!f.reportValidity()) return;
+  const body = {description: f.description.value.trim(), instructions: f.instructions.value,
+                tools: f.tools.value.split(/[\s,]+/).filter(Boolean), visibility: f.visibility.value, enabled: f.enabled.value === 'true'};
+  try {
+    if (currentSkill) await api('PATCH', 'api/v1/skills/' + encodeURIComponent(currentSkill.id), body);
+    else await api('POST', 'api/v1/skills', {name: f.name.value.trim(), ...body});
+    $('skill-dlg').close(); toast('Saved'); loadSkills();
+  } catch (x) { $('skill-err').textContent = x.message; }
+};
+$('skill-delete').onclick = async () => {
+  if (!currentSkill || !confirm(`Remove skill ${currentSkill.name}?`)) return;
+  try { await api('DELETE', 'api/v1/skills/' + encodeURIComponent(currentSkill.id)); $('skill-dlg').close(); toast('Removed'); loadSkills(); }
+  catch (x) { $('skill-err').textContent = x.message; }
+};
+
+// ------------------------------------------------------------------------------------- memory
+const MEMORY_PAGE = 50;
+let memories = [], memoryTotal = 0;
+async function loadMemory(more) {
+  const r = await api('GET', `api/v1/memories?limit=${MEMORY_PAGE}&offset=${more ? memories.length : 0}`);
+  memories = more ? memories.concat(r.memories) : r.memories; memoryTotal = r.total;
+  $('forget-all').disabled = !memoryTotal;
+  $('n-memory').textContent = memoryTotal ? String(memoryTotal) : '';
+  $('memory-more').hidden = memories.length >= memoryTotal;
+  const box = $('g-memory'); box.textContent = '';
+  if (!memories.length) {
+    box.append(el('div', 'empty', r.enabled ? 'Nothing yet. The agent keeps what lasts from each task you finish.'
+                                            : 'This server keeps no long-term memory.'));
+    return;
+  }
+  const ul = el('ul', 'items wide');
+  for (const m of memories) {
+    const li = el('li'), row = el('div', 'row split'), del = el('button', 'btn danger', 'Delete');
+    row.append(el('span', '', m.text));
+    del.onclick = async () => {
+      try { await api('DELETE', 'api/v1/memories/' + encodeURIComponent(m.id)); toast('Deleted'); loadMemory(); }
+      catch (x) { toast(x.message); }
+    };
+    row.append(del);
+    const when = m.created_at ? new Date(m.created_at * 1000).toLocaleString() : '';
+    li.append(row, el('span', 'd', [when, m.source_task ? 'from task ' + m.source_task : ''].filter(Boolean).join(' · ')));
+    ul.append(li);
+  }
+  box.append(ul);
+}
+$('memory-more').onclick = () => loadMemory(true).catch(e => toast(e.message));
+$('forget-all').onclick = async () => {
+  if (!confirm(`Delete all ${memoryTotal} of your memories? The agent will not remember them in later tasks.`)) return;
+  try { const r = await api('DELETE', 'api/v1/memories'); toast(`Deleted ${r.deleted}`); loadMemory(); }
+  catch (x) { toast(x.message); }
+};
+
+// ------------------------------------------------------------------------------------- personal access tokens
+// Served by the auth service (auth/tokens), which keeps them in Logto. 404: not enabled on this server.
+let tokenInfo = null;
+async function loadTokens() {
+  const box = $('g-tokens'); box.textContent = '';
+  try { tokenInfo = await api('GET', 'auth/tokens'); }
+  catch (x) {
+    if (x.status !== 404) throw x;
+    $('new-token').hidden = true; $('n-tokens').textContent = '';
+    box.append(el('div', 'empty', 'Personal access tokens are not enabled on this server. Use `agenticwf login` instead.'));
+    return;
+  }
+  const tokens = tokenInfo.tokens, now = Date.now() / 1000;
+  $('new-token').hidden = false;
+  $('n-tokens').textContent = tokens.length ? String(tokens.length) : '';
+  if (!tokens.length) { box.append(el('div', 'empty', 'No tokens yet.')); return; }
+  const ul = el('ul', 'items wide');
+  for (const t of tokens) {
+    const li = el('li'), row = el('div', 'row split'), name = el('span'), del = el('button', 'btn danger', 'Revoke');
+    name.append(el('b', '', t.name));
+    if (t.expires_at && t.expires_at < now) name.append(' ', el('span', 'chip bad', 'expired'));
+    del.onclick = async () => {
+      if (!confirm(`Revoke the token "${t.name}"? Anything using it stops working.`)) return;
+      try { await api('DELETE', 'auth/tokens/' + encodeURIComponent(t.name)); toast('Revoked'); loadTokens(); }
+      catch (x) { toast(x.message); }
+    };
+    row.append(name, del);
+    const when = v => v ? new Date(v * 1000).toLocaleDateString() : 'never';
+    li.append(row, el('span', 'd', `created ${when(t.created_at)} · expires ${when(t.expires_at)}`));
+    ul.append(li);
+  }
+  box.append(ul);
+}
+$('new-token').onclick = () => {
+  const days = $('token-days'); days.textContent = '';
+  for (const d of [7, 30, 90, 365].filter(d => d <= tokenInfo.max_days)) {
+    const o = el('option', '', `${d} days`); o.value = d; o.selected = d === 30; days.append(o);
+  }
+  $('token-name').value = ''; $('token-err').textContent = '';
+  $('token-form').hidden = false; $('token-done').hidden = true; $('token-create').hidden = false;
+  $('token-dlg').showModal(); $('token-name').focus();
+};
+$('token-create').onclick = async () => {
+  try {
+    const t = await api('POST', 'auth/tokens', {name: $('token-name').value.trim(), expires_in_days: Number($('token-days').value)});
+    const c = tokenInfo.cli || {};
+    $('token-value').value = t.token;
+    $('token-setup').value = [
+      `export AGENTICWF_AUTH_URL=${c.auth_url || '<Logto URL>'}`,
+      `export AGENTICWF_API_URL=${c.api_url || location.origin}`,
+      `export AGENTICWF_CLIENT_ID=${c.client_id || '<CLI app id: ask your administrator>'}`,
+      `export AGENTICWF_RESOURCE=${c.resource || '<API resource>'}`,
+      `export AGENTICWF_TOKEN=${t.token}`,
+      'agenticwf whoami'].join('\n');
+    $('token-form').hidden = true; $('token-done').hidden = false; $('token-create').hidden = true;
+    loadTokens().catch(e => toast(e.message));
+  } catch (x) { $('token-err').textContent = x.message; }
+};
+$('token-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('token-value').value); toast('Copied'); }
+  catch (_) { $('token-value').select(); }
+};
+// The value must not outlive the dialog in the page.
+$('token-dlg').addEventListener('close', () => { $('token-value').value = ''; $('token-setup').value = ''; });
+
+// ------------------------------------------------------------------------------------- groups
+// Served by the auth service (auth/groups): Logto organizations, their members and join requests.
+// 404: not enabled on this server.
+let currentGroup = null;
+const gpath = (id, rest) => 'auth/groups/' + encodeURIComponent(id) + (rest ? '/' + rest : '');
+async function loadGroups() {
+  const mine = $('g-gmine'), other = $('g-gother'); mine.textContent = ''; other.textContent = '';
+  let data;
+  try { data = await api('GET', 'auth/groups'); }
+  catch (x) {
+    if (x.status !== 404) throw x;
+    $('new-group').hidden = true; $('n-gmine').textContent = ''; $('n-gother').textContent = '';
+    mine.append(el('div', 'empty', 'Groups are not enabled on this server: the auth service needs its Logto Management API app (AUTH_MGMT_CLIENT_ID).'));
+    return;
+  }
+  $('new-group').hidden = !data.can_create;
+  const list = (box, countId, groups, empty) => {
+    $(countId).textContent = groups.length ? String(groups.length) : '';
+    if (!groups.length) { box.append(el('div', 'empty', empty)); return; }
+    const ul = el('ul', 'items wide');
+    groups.forEach(g => ul.append(groupItem(g)));
+    box.append(ul);
+  };
+  const others = data.groups.filter(g => !g.member);
+  list(mine, 'n-gmine', data.groups.filter(g => g.member), others.length ? 'You are in no group yet: ask to join one below.' : 'You are in no group yet.');
+  list(other, 'n-gother', others, data.groups.length ? 'You are in every group.'
+                                                     : 'No groups yet.' + (data.can_create ? ' “New group” creates one.' : ' An administrator creates them.'));
+}
+function groupItem(g) {
+  const li = el('li'), row = el('div', 'row split'), name = el('span'), acts = el('span', 'row');
+  name.append(el('b', '', g.name));
+  if (g.admin) name.append(' ', el('span', 'chip own', 'admin'));
+  if (g.pending) name.append(' ', el('span', 'chip', `${g.pending} request${g.pending > 1 ? 's' : ''}`));
+  if (g.requested) name.append(' ', el('span', 'chip', 'requested'));
+  if (g.member || g.can_manage) {
+    const b = el('button', 'btn', g.can_manage ? 'Manage' : 'Members');
+    b.onclick = () => openGroup(g.id).catch(x => toast(x.message));
+    acts.append(b);
+  }
+  if (!g.member) {
+    const b = el('button', 'btn' + (g.requested ? '' : ' primary'), g.requested ? 'Cancel request' : 'Ask to join');
+    b.onclick = async () => {
+      try {
+        if (g.requested) await api('DELETE', gpath(g.id, 'requests'));
+        else {
+          const message = prompt(`Ask to join ${g.name}. A note for its admins (optional):`, '');
+          if (message === null) return;
+          await api('POST', gpath(g.id, 'requests'), {message});
+        }
+        toast(g.requested ? 'Request cancelled' : 'Request sent'); loadGroups();
+      } catch (x) { toast(x.message); }
+    };
+    acts.append(b);
+  }
+  row.append(name, acts);
+  li.append(row, el('span', 'd', [g.description, 'shared as ' + g.group].filter(Boolean).join(' · ')));
+  return li;
+}
+function personItem(who, sub, chips, buttons) {
+  const li = el('li'), row = el('div', 'row split'), name = el('span'), acts = el('span', 'row');
+  name.append(el('b', '', who)); chips.forEach(c => name.append(' ', el('span', 'chip own', c)));
+  buttons.forEach(([label, cls, fn]) => { const b = el('button', 'btn ' + cls, label); b.onclick = fn; acts.append(b); });
+  row.append(name, acts); li.append(row);
+  if (sub) li.append(el('span', 'd', sub));
+  return li;
+}
+async function openGroup(id) {
+  const d = await api('GET', gpath(id, 'members')), g = d.group, manage = g.can_manage, f = $('group-form');
+  currentGroup = g;
+  $('group-title').textContent = g.name; $('group-ref').textContent = g.group; $('group-err').textContent = '';
+  f.hidden = !manage; f.gname.value = g.name; f.gdesc.value = g.description;
+  $('group-save').hidden = !manage; $('group-add').hidden = !manage; $('group-requests-box').hidden = !manage;
+  $('group-delete').hidden = !me.scopes.includes('admin'); $('group-leave').hidden = !g.member;
+  const members = el('ul', 'items wide');
+  for (const m of d.members) {
+    const who = m.name || m.email || m.user_id;
+    members.append(personItem(who, m.email !== who ? m.email : '', m.admin ? ['admin'] : [], !manage ? [] : [
+      [m.admin ? 'Remove admin' : 'Make admin', '', () => groupChange('PATCH', 'members/' + encodeURIComponent(m.user_id), {admin: !m.admin})],
+      ['Remove', 'danger', () => confirm(`Remove ${who} from ${g.name}?`) && groupChange('DELETE', 'members/' + encodeURIComponent(m.user_id))]]));
+  }
+  $('group-members').replaceChildren(d.members.length ? members : el('div', 'empty', 'No members yet.'));
+  if (manage) {
+    const reqs = el('ul', 'items wide');
+    for (const r of d.requests) {
+      const who = r.name || r.email || r.user_id;
+      reqs.append(personItem(who, [r.email !== who ? r.email : '', r.message && `“${r.message}”`, new Date(r.created_at * 1000).toLocaleDateString()].filter(Boolean).join(' · '), [], [
+        ['Approve', 'primary', () => groupChange('POST', 'requests/' + encodeURIComponent(r.user_id), {approve: true})],
+        ['Decline', '', () => groupChange('POST', 'requests/' + encodeURIComponent(r.user_id), {approve: false})]]));
+    }
+    $('group-requests').replaceChildren(d.requests.length ? reqs : el('div', 'empty', 'No requests.'));
+  }
+  if (!$('group-dlg').open) $('group-dlg').showModal();
+}
+async function groupChange(method, rest, body) {
+  try { await api(method, gpath(currentGroup.id, rest), body); await openGroup(currentGroup.id); loadGroups(); }
+  catch (x) { $('group-err').textContent = x.message; }
+}
+$('new-group').onclick = async () => {
+  const name = (prompt('Name of the new group:', '') || '').trim();
+  if (!name) return;
+  try { const g = await api('POST', 'auth/groups', {name, description: ''}); toast('Created: now add its admins'); loadGroups(); await openGroup(g.id); }
+  catch (x) { toast(x.message); }
+};
+$('group-save').onclick = async () => {
+  const f = $('group-form');
+  try { await api('PATCH', gpath(currentGroup.id), {name: f.gname.value.trim(), description: f.gdesc.value.trim()}); toast('Saved'); await openGroup(currentGroup.id); loadGroups(); }
+  catch (x) { $('group-err').textContent = x.message; }
+};
+$('group-add-btn').onclick = async () => {
+  const email = $('group-add-email').value.trim();
+  if (!email) return;
+  await groupChange('POST', 'members', {email, admin: $('group-add-admin').checked});
+  if (!$('group-err').textContent) { $('group-add-email').value = ''; $('group-add-admin').checked = false; }
+};
+$('group-leave').onclick = async () => {
+  if (!confirm(`Leave ${currentGroup.name}? What is shared with it is no longer shared with you.`)) return;
+  try { await api('DELETE', gpath(currentGroup.id, 'members/' + encodeURIComponent(me.id))); $('group-dlg').close(); toast('Left the group'); loadGroups(); }
+  catch (x) { $('group-err').textContent = x.message; }
+};
+$('group-delete').onclick = async () => {
+  if (!confirm(`Delete the group ${currentGroup.name}? Its members lose what is shared with it.`)) return;
+  try { await api('DELETE', gpath(currentGroup.id)); $('group-dlg').close(); toast('Deleted'); loadGroups(); }
+  catch (x) { $('group-err').textContent = x.message; }
+};
+
+// ------------------------------------------------------------------------------------- start
+(async () => {
+  try {
+    const m = await api('GET', 'api/v1/me');
+    me.id = m.user_id || m.subject; me.scopes = m.scopes || []; me.org = m.organization_id;
+    $('who').textContent = m.user_id || m.subject;
+  } catch (e) { toast(e.message); return; }
+  try {
+    const s = await (await fetch('auth/session')).json(), u = s.user;
+    if (u) { $('who').textContent = displayName(u); $('who').title = whoHint(u); showAccountLink(s); }
+  } catch (_) {}
+  const tab = location.hash.slice(1);
+  show(tab in VIEWS ? tab : 'types');
+})();
+</script></body></html>

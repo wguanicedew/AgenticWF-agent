@@ -1,0 +1,6 @@
+# Hard settings of the `default` task type: read by the harness and the policy engine, never by
+# the model (docs/agent-runtime.md §4).
+mode: default
+# Tools AGENTS.md relies on are always active, so its routing rules never name a missing tool.
+pin_tools: [search_code, read_file, edit_file, run_tests]
+max_steps: 30

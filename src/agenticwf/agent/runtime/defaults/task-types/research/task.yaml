@@ -1,0 +1,4 @@
+# Hard settings of the research type (docs/agent-runtime.md, Task types). Read by the harness and
+# the policy engine, never by the model.
+pin_tools: [kb_research, kb_search, kb_read, kb_grep, web_search, web_fetch]
+plan: never
