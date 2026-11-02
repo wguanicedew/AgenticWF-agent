@@ -51,6 +51,7 @@ class HandlerKind(str, Enum):
     SUBAGENT = "subagent"  # child task built from the description
     CONTROL = "control"    # handled by the harness itself (update_plan, ask_user, ...)
     SKILL = "skill"        # loads a skill's instructions (agenticwf.agent.runtime.skills); it acts on nothing
+    COMMAND = "command"    # a program, in its plugin's environment; system plugins only (agenticwf.agent.runtime.plugins.command)
 
 
 USER_HANDLER_KINDS = frozenset({HandlerKind.MCP, HandlerKind.HTTP, HandlerKind.SUBAGENT})

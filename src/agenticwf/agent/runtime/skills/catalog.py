@@ -1,7 +1,8 @@
 """
 SkillCatalog: every skill, from four sources (docs/skills.md).
 
-    system      <system dir>/skills/<skill>/SKILL.md                     everyone, unless `access` narrows it
+    system      <system dir>/skills/<skill>/SKILL.md (or .claude/skills/, everyone, unless `access` narrows it
+                .codex/skills/, .agents/skills/)
     plugin      <plugin>/skills/<skill>/SKILL.md, named <plugin>.<skill>  as the plugin (agenticwf.agent.runtime.plugins)
     user        <user sandbox>/skills/<skill>/SKILL.md, and the skills    their owner
                 of a user's own plugins
@@ -24,8 +25,8 @@ from typing import Callable, Protocol
 
 from agenticwf.agent.core.common.logging import get_logger
 from agenticwf.agent.runtime.plugins.manager import PluginManager
-from agenticwf.agent.runtime.skills.skill import (FILES_MAX, Skill, SkillError, check, check_file_content, check_file_path,
-                                  read_skills_dir)
+from agenticwf.agent.runtime.skills.skill import (FILES_MAX, TOOL_ALIASES, Skill, SkillError, check, check_file_content,
+                                  check_file_path, read_skill_roots)
 from agenticwf.agent.runtime.tools.spec import VISIBILITY, CallContext, Handler, ToolResult, ToolSpec
 from agenticwf.agent.runtime.types import Owner, owner_key
 
@@ -46,13 +47,15 @@ class SkillStore(Protocol):
 class SkillCatalog:
     def __init__(self, system_dir: Path | None = None, user_sandbox: Callable[[Owner], Path | None] | None = None,
                  plugins: PluginManager | None = None, store: SkillStore | None = None,
-                 user_ttl: float = 5.0, refresh_seconds: float = 10.0):
+                 user_ttl: float = 5.0, refresh_seconds: float = 10.0,
+                 tool_aliases: dict[str, tuple[str, ...]] | None = None):
         self.system_dir = system_dir
         self.user_sandbox = user_sandbox
         self.plugins = plugins
         self.store = store
         self.user_ttl = user_ttl
         self.refresh_seconds = refresh_seconds
+        self.tool_aliases = tool_aliases if tool_aliases is not None else dict(TOOL_ALIASES)   # [skills] tool_aliases
         self._system: list[Skill] | None = None
         self._users: dict[Owner, tuple[float, list[Skill]]] = {}
         self._database: list[Skill] = []
@@ -63,7 +66,7 @@ class SkillCatalog:
     # --- reading -------------------------------------------------------------------------------
     def load(self) -> list[str]:
         """(Re)read the system skills; plugin skills come with the plugins (PluginManager.load)."""
-        skills, errors = read_skills_dir(self.system_dir / "skills", "system") if self.system_dir else ([], [])
+        skills, errors = read_skill_roots(self.system_dir, "system") if self.system_dir else ([], [])
         for error in errors:
             LOG.error("skill skipped: %s", error)
         with self._lock:
@@ -87,7 +90,7 @@ class SkillCatalog:
             cached = self._users.get(owner)
         if cached and cached[0] + self.user_ttl > time.monotonic():
             return cached[1] + own_plugins
-        skills, errors = read_skills_dir(sandbox / "skills", "user", owner=owner)
+        skills, errors = read_skill_roots(sandbox, "user", owner=owner)
         for error in errors:
             LOG.warning("user skill skipped: %s", error)
         with self._lock:
@@ -118,9 +121,28 @@ class SkillCatalog:
     def get(self, skill_id: str, owner: Owner) -> Skill | None:
         return next((k for k in self.skills(owner) if k.id == skill_id), None)
 
+    def find(self, name: str, owner: Owner) -> Skill | None:
+        """An enabled skill `owner` may use, by what a person types after `/`: its qualified name
+        (`release-notes`, `github.triage`), its tool name, or a plugin skill's bare name when only
+        one plugin has it. Their own first, as in skills()."""
+        name = name.strip().lower()
+        usable = [k for k in self.skills(owner) if k.enabled]
+        exact = next((k for k in usable if name in (k.qualified, k.tool_name, k.tool_name[len("skill__"):])), None)
+        if exact is not None:
+            return exact
+        bare = [k for k in usable if k.name == name]
+        return bare[0] if len(bare) == 1 else None
+
+    def activate(self, skill: Skill, owner: Owner, arguments: dict | None = None) -> ToolResult:
+        """Its activation for `owner`: what it pre-approves counts when operators installed it or it
+        is the owner's own, never for someone else's shared skill."""
+        preapprove = skill.owner is None or skill.owned_by(owner)
+        return skill.activation(arguments, self.tool_aliases, preapprove=preapprove)
+
     def tools_for(self, owner: Owner) -> list[ToolSpec]:
-        """The ToolRegistry's source: one `skill__<name>` tool per enabled skill `owner` may use."""
-        return [k.spec() for k in self.skills(owner) if k.enabled]
+        """The ToolRegistry's source: one `skill__<name>` tool per enabled skill `owner` may use, but
+        those that only people may invoke (disable-model-invocation)."""
+        return [k.spec() for k in self.skills(owner) if k.enabled and k.model_invocable]
 
     def handler(self, spec: ToolSpec) -> Handler:
         """Loading the skill: its instructions as the call's result, for the caller only if they may use it."""
@@ -130,7 +152,7 @@ class SkillCatalog:
             skill = self.get(skill_id, owner_key(call.auth))
             if skill is None or not skill.enabled:
                 return ToolResult.error("unknown_skill", f"The skill {skill_id} is not available.")
-            return skill.activation()
+            return self.activate(skill, owner_key(call.auth), arguments)
         return load
 
     def read_file(self, skill_id: str, path: str, owner: Owner) -> str:

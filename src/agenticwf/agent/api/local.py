@@ -46,6 +46,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, urlencode
 
+from agenticwf.agent.api.settings import WELL_KNOWN
+
 DEFAULT_PORT = 8765
 # `admin`: the personal agent's user is also its manager (adds models, docs/agent-models.md).
 DEFAULT_SCOPES = ("app:access agent:use admin code:read code:write knowledge:read dataset:read dataset:write")
@@ -199,6 +201,10 @@ class LocalAuth:
         method, path = scope["method"], scope["path"]
         if path == "/healthz":
             await self.app(scope, receive, send)
+            return
+        if path == WELL_KNOWN:   # how clients sign in: this agent's own token
+            await _json(send, 200, {"service": "agent", "mode": "local", "auth": "token", "base_path": "",
+                                    "token_help": _token_commands()})
             return
         if path == "/favicon.ico":   # browsers ask for it on every page, signed in or not
             await _respond(send, 204, b"")
@@ -393,6 +399,13 @@ def _token_help() -> str:
         or ["# On this machine (the sign-in link was printed when it started):", "agenticwf-agent token"]
     return "\n".join(f'<p class="h">{html.escape(line.lstrip("# "))}</p>' if line.startswith("#")
                      else f"<pre>{html.escape(line)}</pre>" for line in lines)
+
+
+def _token_commands() -> str:
+    """The commands of _token_help, for a client's error message."""
+    lines = [line.strip() for line in os.environ.get("AGENT_LOCAL_TOKEN_HELP", "").splitlines()
+             if line.strip() and not line.strip().startswith("#")]
+    return "; ".join(lines) or "agenticwf-agent token"
 
 
 PAGE_STYLE = """body{font:15px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}

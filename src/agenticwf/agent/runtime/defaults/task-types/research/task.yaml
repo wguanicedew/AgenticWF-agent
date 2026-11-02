@@ -1,4 +1,5 @@
 # Hard settings of the research type (docs/agent-runtime.md, Task types). Read by the harness and
-# the policy engine, never by the model.
+# the policy engine, never by the model; only `description` is shown to it, when intake chooses types.
+description: Answer a question from the knowledge bases and the web, with citations
 pin_tools: [kb_research, kb_search, kb_read, kb_grep, web_search, web_fetch]
 plan: never

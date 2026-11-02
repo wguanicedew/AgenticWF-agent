@@ -48,13 +48,14 @@ from agenticwf.auth.context import AuthContext
 from agenticwf.agent.core.common.logging import get_logger, log_context
 from agenticwf.agent.runtime.context.agent_context import AgentContext
 from agenticwf.agent.runtime.context.task_types import DEFAULT
-from agenticwf.agent.runtime.harness.planning import IntakeSettings, parse_plan, parse_tasks
+from agenticwf.agent.runtime.harness.planning import IntakeSettings, parse_picks, parse_plan, parse_tasks
 from agenticwf.agent.runtime.harness.services import HarnessServices
 from agenticwf.agent.runtime.harness.state import WAITING_STATES, check_transition
 from agenticwf.agent.runtime.harness.store import Job, RuntimeStore
 from agenticwf.agent.runtime.llm.base import LLMError, LLMRequest, LLMResponse, Message, Usage
 from agenticwf.agent.runtime.llm.routing import raise_tier, tier_rank
-from agenticwf.agent.runtime.policy.engine import PolicyEngine
+from agenticwf.agent.runtime.overrides import HARNESS, SettingOverrides, effective
+from agenticwf.agent.runtime.policy.engine import DecisionKind, PolicyEngine
 from agenticwf.agent.runtime.records import (EffectStatus, Intent, IntentStatus, PlanItem, Reply, StepRecord, TaskResult, TaskSpec,
                              Turn, TurnResult, TurnState)
 from agenticwf.agent.runtime.session.state import SessionConfiguration
@@ -62,11 +63,13 @@ from agenticwf.agent.runtime.skills.skill import SkillError
 from agenticwf.agent.runtime.task import Task, ToolCall, ToolCallStatus
 from agenticwf.agent.runtime.telemetry import record_task_ended, trace_id
 from agenticwf.agent.runtime.tools.control import TURN_TOOL_NAMES
-from agenticwf.agent.runtime.tools.dispatcher import Outcome, ToolDispatcher
+from agenticwf.agent.runtime.tools.dispatcher import Outcome, ToolDispatcher, index_line
+from agenticwf.agent.runtime.tools.loader import reword
 from agenticwf.agent.runtime.tools.spec import ToolResult
 from agenticwf.agent.runtime.types import SYSTEM_SCOPE, Mode, Owner, RuntimeState, owner_key, scope_of
 
 LOG = get_logger(__name__)
+_SLASH = re.compile(r"^\s*/([a-z0-9][a-z0-9_.-]*)(?:\s+(.*))?$", re.S | re.I)   # `/<skill> rest`
 
 # Calls that write a task's own work (its steps, plan, answer): they keep the task's model, pin and tier.
 _TASK_PURPOSES = frozenset({"step", "cron_check", "plan", "final_report", "reply"})
@@ -104,13 +107,16 @@ class HarnessError(Exception):
 class AgentHarness:
     def __init__(self, services: HarnessServices, events: EventSink | None = None,
                  limits: Limits | None = None, model: str = "default",
-                 on_complete: list[CompletionHook] | None = None, intake: IntakeSettings | None = None):
+                 on_complete: list[CompletionHook] | None = None, intake: IntakeSettings | None = None,
+                 overrides: SettingOverrides | None = None):
         self.services = services
         self.events = events or (lambda subject, event: None)
         self.limits = limits or Limits()
         self.model = model   # default; a task may name its own. TODO: model router, by task type (TaskTypeSettings.model)
         self.on_complete = list(on_complete or ())
         self.intake_settings = intake or IntakeSettings()
+        # [harness] settings changed on the admin page, for everyone or one person (agenticwf.agent.runtime.overrides)
+        self.overrides = overrides
         self._sinks: dict[str, EventSink] = {}   # session id → that session's event sink
         # Called when every task of an intent has ended, before its reply is saved (agenticwf.agent.runtime.cron
         # finishes its runs here). Must be idempotent: a restart may call it again.
@@ -151,6 +157,26 @@ class AgentHarness:
         self._sinks.pop(session_id, None)
 
     # ============================================================================================
+    # Settings: agent.cfg's [harness], with what the admin page changed (agenticwf.agent.runtime.overrides)
+    # ============================================================================================
+    def harness_view(self) -> dict[str, Any]:
+        """The [harness] settings as agent.cfg has them, by the names the admin page uses."""
+        intake, limits = self.intake_settings, self.limits
+        return {"split": intake.split, "plan": intake.plan, "max_tasks": intake.max_tasks,
+                "max_plan_items": intake.max_plan_items, "max_steps": limits.max_steps,
+                "max_tool_calls": limits.max_tool_calls, "deadline_seconds": limits.deadline_seconds}
+
+    def settings_for(self, owner: Owner | None) -> tuple[IntakeSettings, Limits]:
+        """The intake settings and limits for one owner's work: agent.cfg's, everyone's changes, theirs."""
+        if self.overrides is None:
+            return self.intake_settings, self.limits
+        v = effective(self.overrides, HARNESS, self.harness_view(), owner)
+        return (dataclasses.replace(self.intake_settings, split=v["split"], plan=v["plan"], max_tasks=v["max_tasks"],
+                                    max_plan_items=v["max_plan_items"]),
+                dataclasses.replace(self.limits, max_steps=v["max_steps"], max_tool_calls=v["max_tool_calls"],
+                                    deadline_seconds=v["deadline_seconds"]))
+
+    # ============================================================================================
     # Intents: intake and the reply (docs/agent-flow.md §4, §7)
     # ============================================================================================
     def start_intent(self, intent_id: str) -> None:
@@ -185,8 +211,14 @@ class AgentHarness:
             return []
         intent.status = IntentStatus.CLAIMED
         self.store.save_intent(intent)
+        invoked = None if intent.planned else self._invoked_skill(intent)
         if intent.planned:   # known in advance (a cron's checks): no conversation, no split
-            specs = list(intent.planned)
+            specs, intent.intake = list(intent.planned), "planned"
+        elif invoked is not None:   # `/<skill> …`: one task, which runs that skill
+            if await self._compact_conversation(intent):
+                self.store.save_intent(intent)
+            specs = [TaskSpec("A", invoked["purpose"] or intent.text, intent.requested_task_type or DEFAULT)]
+            intent.intake = "skill"
         else:
             if await self._compact_conversation(intent):
                 self.store.save_intent(intent)   # a restart does not compact it again
@@ -201,7 +233,8 @@ class AgentHarness:
             task = self.create_task(intent.auth, spec.request, task_type=spec.task_type, mode=intent.requested_mode,
                                     session_id=intent.thread_id, history=_conversation(intent), model=intent.model,
                                     intent_id=intent.id, depends_on=[ids[k] for k in spec.depends_on],
-                                    source=intent.source, spec=spec if intent.planned else None, recalled=recalled)
+                                    source=intent.source, spec=spec if intent.planned else None, recalled=recalled,
+                                    skill=invoked)
             ids[spec.key] = task.id
             tasks.append(task)
         intent.task_ids = [t.id for t in tasks]
@@ -215,13 +248,28 @@ class AgentHarness:
                 self.schedule(task.id)
         return tasks
 
+    def _invoked_skill(self, intent: Intent) -> dict[str, str] | None:
+        """`/<skill> rest` invokes a skill the owner may use, even one the model is never offered
+        (disable-model-invocation): {"id", "purpose": rest}. Anything else, `/etc/hosts` too, is
+        an ordinary request."""
+        match = _SLASH.match(intent.text or "")
+        skills = self.dispatcher.registry.skills
+        if match is None or skills is None:
+            return None
+        skill = skills.find(match.group(1), intent.owner)
+        return {"id": skill.id, "purpose": (match.group(2) or "").strip()} if skill is not None else None
+
     async def _split(self, intent: Intent) -> list[TaskSpec]:
         requested = intent.requested_task_type
         single = [TaskSpec("A", intent.text, requested or DEFAULT)]
-        if not self.intake_settings.split:
+        intent.intake = "single"
+        intake, _ = self.settings_for(intent.owner)
+        if not intake.split:
             return single
-        types = [t.ref for t in self.services.task_types.catalogue(intent.owner)]   # bare names, ids where ambiguous
-        prompt = (f"Task types you can choose from: {', '.join(types)}.\n\n"
+        # bare names (ids where ambiguous), each with what it is for, so the model chooses by purpose
+        types = "\n".join(f"- {t.ref}: {t.description}" if t.description else f"- {t.ref}"
+                          for t in self.services.task_types.catalogue(intent.owner))
+        prompt = (f"Task types you can choose from:\n{types}\n\n"
                   f"<request>\n{intent.text}\n</request>")
         request = LLMRequest(model=intent.model or self.model, owner=intent.owner, system=self._prompt("split"),
                              messages=[*_conversation(intent), Message("user", prompt)], purpose="split",
@@ -232,9 +280,10 @@ class AgentHarness:
                 response = await self.services.llm.complete(request)
             except LLMError as exc:
                 LOG.warning("intake split unavailable, one task: %s", exc)
+                intent.intake = "single: the split call failed"
                 return single
             intent.usage.add(response.usage)
-            specs = parse_tasks(response.text, self.intake_settings.max_tasks)
+            specs = parse_tasks(response.text, intake.max_tasks)
             router = self._router()
             if specs is not None or attempt or router is None or not router.can_escalate(intent.owner):
                 break
@@ -243,7 +292,9 @@ class AgentHarness:
             request = dataclasses.replace(request, min_tier=raise_tier(router.tier_for("split")))
         if specs is None:
             LOG.info("intake split returned no usable tasks, one task")
+            intent.intake = "single: the split did not parse"
             return single
+        intent.intake = "split"
         if requested:   # the user asked for a type: it applies to every task
             specs = [dataclasses.replace(s, task_type=requested) for s in specs]
         return specs
@@ -423,13 +474,15 @@ class AgentHarness:
                     session_id: str | None = None, history: list[Message] | None = None,
                     model: str | None = None, intent_id: str | None = None,
                     depends_on: list[str] | None = None, source: str = "web", spec: TaskSpec | None = None,
-                    recalled: list | None = None) -> Task:
+                    recalled: list | None = None, skill: dict[str, str] | None = None) -> Task:
         """Accept a task: snapshot instructions, build the task context, recall memory. A task that
         needs no plan and waits for nothing starts its single turn now (tools selected). A planned
         task's `spec` adds instructions, narrows tools and skills, sets its deadline, and says what
-        an approval becomes with nobody to ask (`unattended`)."""
+        an approval becomes with nobody to ask (`unattended`). `skill` ({"id", "purpose"}) is the skill
+        the person invoked with `/<skill>`: it runs from the start of each turn."""
         resolved = self.services.task_types.resolve(task_type, (auth.subject, auth.organization_id))
         settings = resolved.settings
+        _, limits = self.settings_for((auth.subject, auth.organization_id))
         if spec is not None and spec.mode:
             mode = Mode(spec.mode)
         if mode is not None and mode not in settings.allowed_modes():   # never looser than the type permits
@@ -440,16 +493,17 @@ class AgentHarness:
                     session_id=session_id, intent_id=intent_id, depends_on=list(depends_on or ()),
                     # the thread's or message's choice, else the task type's, else the default
                     model=model or settings.model or self.model,
-                    deadline=time.time() + self.limits.deadline_seconds, source=source,
+                    deadline=time.time() + limits.deadline_seconds, source=source,
                     # a model chosen for it (message, thread, task type, cron) is used as is: not routed
                     pinned=bool(model or settings.model), min_tier=(spec.tier if spec else None) or settings.tier)
+        task.invoked_skill = dict(skill) if skill else None
         if spec is not None:
             task.tool_globs, task.skill_names, task.unattended = spec.tools, spec.skills, spec.unattended
             task.cron = dict(spec.cron) if spec.cron else None
             if spec.timeout:
                 task.deadline = time.time() + spec.timeout
         ctx = self.services.context_manager.build(
-            task, list(history or ()), max_steps=settings.max_steps or self.limits.max_steps,
+            task, list(history or ()), max_steps=settings.max_steps or limits.max_steps,
             wrap_up_at=self.limits.wrap_up_at, recall_k=self.limits.recall_k, preamble=self._prompt("preamble"),
             recalled=recalled)
         if spec is not None:
@@ -462,8 +516,8 @@ class AgentHarness:
                       intent=intent_id, depends_on=task.depends_on)
         if resolved.fell_back:
             self._publish(task, "task_type_fallback", requested=task_type, resolved="default")
-        if not task.depends_on and not self._should_plan(task):
-            self._set_plan(task, [PlanItem("t1", text)])
+        if not task.depends_on and not self._should_plan(task) and not self.dispatcher.select_model_above:
+            self._set_plan(task, [PlanItem("t1", text)])   # with a model to pick tools: in _begin, after it did
             self._start_turn(task, ctx, task.plan[0])
         self.store.save(task, ctx)
         return task
@@ -487,6 +541,8 @@ class AgentHarness:
                     break
                 if task.state is RuntimeState.QUEUED:
                     await self._prefetch(task.owner, task.input)
+                    if task.active_turn is None and not self._should_plan(task):
+                        await self._pick_tools(task, ctx, task.input)
                     self._begin(task, ctx)
                 elif task.state is RuntimeState.PLANNING:
                     await self._plan(task, ctx)
@@ -571,11 +627,11 @@ class AgentHarness:
     # Planning and turns
     # ============================================================================================
     def _should_plan(self, task: Task) -> bool:
-        return (task.task_type.settings.plan or self.intake_settings.plan) == "always"
+        return (task.task_type.settings.plan or self.settings_for(task.owner)[0].plan) == "always"
 
     def _begin(self, task: Task, ctx: AgentContext) -> None:
         if task.depends_on:   # results of earlier tasks of the same intent, before the request
-            task.deadline = time.time() + self.limits.deadline_seconds   # its time starts now, not at intake
+            task.deadline = time.time() + self.settings_for(task.owner)[1].deadline_seconds   # its time starts now, not at intake
             inputs = []
             for dep in task.depends_on:
                 loaded, result = self.store.load(dep), self.store.load_result(dep)
@@ -592,27 +648,58 @@ class AgentHarness:
 
     async def _plan(self, task: Task, ctx: AgentContext) -> None:
         system, _ = ctx.render()
-        prompt = self._prompt("plan", task, max_items=self.intake_settings.max_plan_items)
+        max_items = self.settings_for(task.owner)[0].max_plan_items
+        prompt = self._prompt("plan", task, max_items=max_items)
         request = LLMRequest(model=task.model, owner=task.owner, system=system, messages=[*ctx.messages, Message("user", prompt)],
                              purpose="plan")
         response = await self._complete(task, ctx, request)
         if response is None:
             return
         ctx.usage.add(response.usage)
-        items = parse_plan(response.text, self.intake_settings.max_plan_items)
+        items = parse_plan(response.text, max_items)
         if items is None and self._escalate(task, "the plan did not parse", "plan"):
             response = await self._complete(task, ctx, request)
             if response is None:
                 return
             ctx.usage.add(response.usage)
-            items = parse_plan(response.text, self.intake_settings.max_plan_items)
+            items = parse_plan(response.text, max_items)
+        task.planned_by = "planner"
         if items is None:
             LOG.info("task %s: no usable plan, one turn", task.id)
             items = [PlanItem("t1", task.input)]
+            task.planned_by = "planner (no usable plan: one turn)"
         self._set_plan(task, items)
         await self._prefetch(task.owner, " ".join([items[0].goal, *items[0].needs]))
+        if len(items) > 1:
+            await self._pick_tools(task, ctx, " ".join([items[0].goal, *items[0].needs]))
+        else:
+            await self._pick_tools(task, ctx, task.input)
         self._start_turn(task, ctx, items[0])
         self._transition(task, ctx, RuntimeState.MODEL_RUNNING)
+
+    async def _pick_tools(self, task: Task, ctx: AgentContext, wanted: str) -> None:
+        """With a large catalogue ([tools] select_model_above): a small model picks the tools for
+        `wanted` (a request or a turn's goal) from their names and summaries; _start_turn offers
+        them first. Without an answer, search alone chooses, as with a small catalogue."""
+        candidates = self.dispatcher.pick_candidates(task, wanted)
+        if not candidates:
+            return
+        limit = self.dispatcher.top_k + self.dispatcher.top_k_skills
+        listing = "\n".join(index_line(s) for s in candidates)
+        request = LLMRequest(model=task.model, owner=task.owner, system=self._prompt("select_tools", max_items=limit),
+                             messages=[Message("user", f"Tools:\n{listing}\n\n<request>\n{wanted}\n</request>")],
+                             purpose="select_tools", task_id=task.id, intent_id=task.intent_id)
+        try:
+            response = await self.services.llm.complete(request)
+        except LLMError as exc:
+            LOG.info("task %s: no model to pick tools, search alone: %s", task.id, exc)
+            return
+        ctx.usage.add(response.usage)
+        task.cost += response.cost or 0.0
+        picked = parse_picks(response.text, {s.name for s in candidates}, limit)
+        if picked:
+            task.tool_picks = (wanted, tuple(picked))
+            self._publish(task, "tools_picked", tools=picked)
 
     def _set_plan(self, task: Task, items: list[PlanItem]) -> None:
         task.plan = list(items)
@@ -632,16 +719,42 @@ class AgentHarness:
         inputs = [(t.id, t.result.summary) for t in task.turns if t.id in item.depends_on and t.result]
         position = (task.plan.index(item) + 1, len(task.plan))
         self.services.context_manager.start_turn(ctx, item, inputs, position)
+        wanted = " ".join([item.goal, *item.needs]) if task.multi_turn else task.input
+        picks = task.tool_picks
+        picked = list(picks[1]) if picks and picks[0] == wanted else None
         if task.multi_turn:   # tools are matched to the turn's goal, not the whole request
             task.active_tools.clear()
-            added = self.dispatcher.select(task, " ".join([item.goal, *item.needs]))
+            added = self.dispatcher.select(task, wanted, picked)
             added += self.dispatcher.activate(task, list(TURN_TOOL_NAMES))
         else:
-            added = self.dispatcher.select(task, task.input)
+            added = self.dispatcher.select(task, wanted, picked)
+        # what was left out, by name; fixed for the turn, like the tools offered at its start
+        ctx.tool_index, ctx.tool_index_more = self.dispatcher.index(task, wanted)
         turn.tools = list(task.active_tools)
         if task.multi_turn:
             self._publish(task, "turn", turn=item.id, phase="started", goal=item.goal, n=position[0], of=position[1])
         self._publish(task, "tools", activated=added)
+        if task.invoked_skill:
+            self._invoke_skill(task, ctx)
+
+    def _invoke_skill(self, task: Task, ctx: AgentContext) -> None:
+        """The skill the person invoked (`/<skill>`) loads before the model's first step, as if the
+        model had called it: no approval to ask (the person chose it), but the policy's denials
+        (deployment rules, the task type's lists, scopes) still hold."""
+        invoked, skills = task.invoked_skill, self.dispatcher.registry.skills
+        skill = skills.get(invoked["id"], task.owner) if skills is not None else None
+        if skill is None or not skill.enabled:
+            self._publish(task, "skill", phase="unavailable", skill=invoked["id"])
+            return
+        decision = self.policy.decide(skill.spec(), {"purpose": invoked["purpose"]}, task)
+        if decision.kind is DecisionKind.DENY:
+            self._publish(task, "skill", phase="denied", skill=skill.id, reason=decision.reason)
+            ctx.append_user(f"(The skill {skill.qualified} the user asked for is not allowed here: {decision.reason})")
+            return
+        result = skills.activate(skill, task.owner, {"purpose": invoked["purpose"]})
+        ctx.skill = str(result.content)
+        ctx.append_user(f"The user invoked the skill {skill.qualified} for this request. Follow it:\n\n{result.content}")
+        self._enter_skill(task, ctx, result.facts["skill"])
 
     async def _verify_turn(self, task: Task, ctx: AgentContext) -> None:
         turn = task.turn()
@@ -682,6 +795,7 @@ class AgentHarness:
         following = task.next_item()
         if following is not None:
             await self._prefetch(task.owner, " ".join([following.goal, *following.needs]))
+            await self._pick_tools(task, ctx, " ".join([following.goal, *following.needs]))
             self._start_turn(task, ctx, following)
             self._transition(task, ctx, RuntimeState.MODEL_RUNNING)
         elif any(task.turn(i.id) is None for i in task.plan):
@@ -806,7 +920,7 @@ class AgentHarness:
         tools = self.dispatcher.active(task)
         system, messages = ctx.render()
         request = LLMRequest(model=task.model, owner=task.owner, system=system, messages=messages,
-                             tools=self.dispatcher.registry.schemas(tools), purpose="cron_check" if task.cron else "step",
+                             tools=reword(self.dispatcher.registry.schemas(tools), task.task_type.tool_wording), purpose="cron_check" if task.cron else "step",
                              on_text=lambda text: self._publish(task, "message_delta", text=text))
         self._publish(task, "step", step=step, turn=task.active_turn, phase="started")
         started, clock = time.time(), time.monotonic()
@@ -880,11 +994,12 @@ class AgentHarness:
                                                          and self.store.effects_for_call(task.id, call.id)):
                 self._resume_call(task, call)
         approved = [c for c in calls if c.status is ToolCallStatus.APPROVED]
-        allowance = max(0, self.limits.max_tool_calls - task.tool_call_count)
+        max_tool_calls = self.settings_for(task.owner)[1].max_tool_calls
+        allowance = max(0, max_tool_calls - task.tool_call_count)
         for call in approved[allowance:]:   # one step cannot run past the limit; the loop then fails the task
             call.status = ToolCallStatus.FAILED
             call.result = ToolResult.error("max_tool_calls", f"Not run: the task's limit of "
-                                           f"{self.limits.max_tool_calls} tool calls is reached.")
+                                           f"{max_tool_calls} tool calls is reached.")
             self._record_call(task, call)
         await self.dispatcher.execute(task, approved[:allowance])
         for call in approved[:allowance]:
@@ -904,7 +1019,7 @@ class AgentHarness:
         """A skill's instructions were loaded: it runs until the turn ends. No other skill is offered
         from now on, and the tools narrow to the skill's (or are matched to it)."""
         task.active_skill = {"id": skill["id"], "tool": skill["tool"], "tools": list(skill.get("tools") or ()),
-                             "files": bool(skill.get("files"))}
+                             "approved": list(skill.get("approved") or ()), "files": bool(skill.get("files"))}
         added = self.dispatcher.enter_skill(task, skill.get("query") or "")
         self._publish(task, "skill", phase="started", skill=skill["id"], tools=list(task.active_tools))
         if added:
@@ -942,6 +1057,7 @@ class AgentHarness:
         args, wm = call.arguments, ctx.working_memory
         if call.name == "update_plan":
             wm.set_plan(args.get("phase"), args.get("steps"))
+            task.model_plan, task.model_phase = tuple(dict(s) for s in wm.plan), wm.phase or ""
             self._publish(task, "plan", phase=wm.phase, steps=wm.plan)
             result = ToolResult(content="Plan recorded.")
         elif call.name == "update_working_memory":
@@ -1035,8 +1151,8 @@ class AgentHarness:
     def _over_limits(self, task: Task, ctx: AgentContext) -> bool:
         if task.deadline and time.time() > task.deadline:
             self._fail(task, ctx, "deadline_exceeded", "The task ran past its deadline.")
-        elif task.tool_call_count >= self.limits.max_tool_calls:
-            self._fail(task, ctx, "max_tool_calls", f"More than {self.limits.max_tool_calls} tool calls.")
+        elif task.tool_call_count >= (max_tool_calls := self.settings_for(task.owner)[1].max_tool_calls):
+            self._fail(task, ctx, "max_tool_calls", f"More than {max_tool_calls} tool calls.")
         else:
             return False
         return True
@@ -1103,6 +1219,7 @@ class AgentHarness:
         if task.model_id:
             router.feedback("escalation", purpose, task.model_id, task.owner, task.id, task.intent_id, evidence)
         task.min_tier, task.escalations = wanted, task.escalations + 1
+        task.escalation_log = (*task.escalation_log, {"tier": wanted, "evidence": evidence, "model": task.model_id})
         LOG.info("task %s: escalated to tier %s (%s)", task.id, wanted, evidence)
         self._publish(task, "model_escalated", tier=wanted, evidence=evidence, model=task.model_id)
         return True

@@ -24,7 +24,8 @@ from agenticwf.agent.runtime.tools.spec import NAME_RE, VISIBILITY, Access, Appr
 from agenticwf.agent.runtime.types import SYSTEM_SCOPE, Owner, scope_of
 
 SERVER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")   # names inside a plugin (.mcp.json style)
-_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(:-[^}]*)?\}")   # ${VAR}, ${VAR:-default}
+_ROOT_VARS = re.compile(r"\$\{(?:CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT)\}")      # the plugin's directory, not the environment
 SOURCES = ("plugin", "user_plugin", "database")
 PREFIX_MAX = 40   # plugin and endpoint names prefix tool names (<prefix>__<tool>, at most 64)
 
@@ -172,12 +173,14 @@ def parse_endpoint(name: str, settings: Any, *, source: str, plugin: str | None 
 
     def expand(value: Any) -> str:
         text = str(value)
+        if root is not None:
+            text = _ROOT_VARS.sub(lambda m: str(root), text)
         if not trusted and _VAR.search(text):
             raise EndpointError("only operators' plugins can read the agent's environment (${...})")
-        missing = [v for v in _VAR.findall(text) if v not in os.environ]
+        missing = [v for v, default in _VAR.findall(text) if v not in os.environ and not default]
         if missing:
             raise EndpointError(f"environment variable {', '.join(missing)} is not set")
-        return _VAR.sub(lambda m: os.environ[m.group(1)], text)
+        return _VAR.sub(lambda m: os.environ.get(m.group(1), (m.group(2) or "")[2:]), text)
 
     try:
         access = inherited.merge(Access.from_mapping(settings.get("access")))

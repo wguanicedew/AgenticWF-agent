@@ -24,6 +24,8 @@ def local():
 
 def test_without_token(local):
     assert local.get("/healthz").status_code == 200
+    known = local.get("/.well-known/agenticwf").json()
+    assert known["mode"] == "local" and known["auth"] == "token" and known["token_help"] == "agenticwf-agent token"
     page = local.get("/")
     assert page.status_code == 302 and page.headers["location"] == "/auth/login?return_to=/"
     assert local.get("/api/v1/me").json()["error"] == "invalid_token"

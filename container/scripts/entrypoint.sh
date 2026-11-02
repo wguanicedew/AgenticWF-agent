@@ -31,8 +31,12 @@ install -d -m 0711 -o root -g root "$SECRETS_DIR"
 install -d -m 0775 -o postgres -g postgres /run/postgresql
 # Users' own task types and plugins ([context] sandbox_root), written by the agent.
 install -d -m 0750 -o agent -g agent "$DATA_ROOT/sandboxes"
+# Repositories search_code searches ([code] root), cloned and updated by the agent.
+install -d -m 0750 -o agent -g agent "$DATA_ROOT/code"
 # Optional log file ([logging] file in agent.cfg), written by the agent.
 install -d -m 0750 -o agent -g agent "$DATA_ROOT/logs"
+# npm's cache (npm_config_cache): packages `npx` fetches for plugins' MCP servers, kept across restarts.
+install -d -m 0750 -o agent -g agent "$DATA_ROOT/npm-cache"
 
 # Key that encrypts secrets the agent stores in its database (model API keys managers add,
 # docs/agent-models.md). Created once; it never enters the database. Back it up with the volume:

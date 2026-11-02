@@ -3,12 +3,19 @@ ToolDispatcher: selects the tools a task sees, and turns tool calls into results
 
     select    eligible = PolicyEngine.visible(ToolRegistry.catalogue(owner)), without what the owner
               switched off (agenticwf.agent.runtime.tools.prefs)
-              active   = pinned + the skills and tools closest to the request (top K of each, BM25),
-                         within a schema token budget; all of them when the catalogue is small
+              active   = pinned + the skills and tools closest to the request (top K of each, BM25
+                         and embeddings), within a schema token budget; all of them when the
+                         catalogue is small. Above `select_model_above` tools, a small model picks
+                         them first (the harness asks it: picked); search fills up the rest
+              index    the eligible tools left out, one line each (name: summary) for the system
+                         prompt, so the model knows they exist without paying for their schemas
+              Within a turn the active set only grows, at its end, and the index stays as it
+              was: the request's prefix (tools, system prompt) changes only when a tool is added
     skills    a skill is a tool (`skill__<name>`) whose call loads its instructions. While one
               runs (task.active_skill) no other skill is offered, and the tools narrow to the
               skill's `tools` when it names any
     prepare   resolve → validate → decide (allow / ask / deny)      no side effects
+              (what the owner set to ask first asks, unless approved for this task)
     execute   pre_tool hooks → effect intended → handler (timeout, ambient AuthContext)
               → normalize → post_tool hooks → effect applied | failed; a span per call
               (agenticwf.agent.runtime.telemetry)
@@ -36,12 +43,23 @@ from agenticwf.agent.runtime.redact import redact
 from agenticwf.agent.runtime.task import Task, ToolCall, ToolCallStatus
 from agenticwf.agent.runtime.telemetry import fail, record_tool_call, span, trace_id
 from agenticwf.agent.runtime.tools.control import CONTROL_TOOL_NAMES, CRON_TOOL_NAMES, SKILL_TOOL_NAMES, TURN_TOOL_NAMES
-from agenticwf.agent.runtime.tools.prefs import InMemoryToolPrefs, ToolPrefs, switched_off
+from agenticwf.agent.runtime.tools.prefs import InMemoryToolPrefs, ToolPrefs, mode_of, switched_off, timeout_of
 from agenticwf.agent.runtime.tools.registry import ToolRegistry
 from agenticwf.agent.runtime.tools.spec import CallContext, Effects, HandlerKind, ToolResult, ToolSpec
 from agenticwf.agent.runtime.types import Owner, use_auth_context
 
 LOG = get_logger(__name__)
+
+
+def index_line(spec: ToolSpec, width: int = 100) -> str:
+    """One tool in a list the model reads: `- name: summary`, the summary cut to `width`."""
+    summary = " ".join(spec.summary.split())
+    return f"- {spec.name}: {summary if len(summary) <= width else summary[:width - 1].rstrip() + '…'}"
+
+
+def _closest_first(close: list[ToolSpec], everything: list[ToolSpec]) -> list[ToolSpec]:
+    names = {s.name for s in close}
+    return [*close, *(s for s in everything if s.name not in names)]
 
 
 class Outcome(str, Enum):
@@ -65,6 +83,7 @@ class ToolDispatcher:
     def __init__(self, registry: ToolRegistry, policy: PolicyEngine, hooks: Hooks | None = None,
                  top_k: int = 15, schema_budget_tokens: int = 8000, small_catalogue: int = 30, top_k_skills: int = 5,
                  always: tuple[str, ...] = (), prefs: ToolPrefs | None = None,
+                 index_tokens: int = 1500, select_model_above: int = 0,
                  hidden: Callable[[Owner], frozenset[str]] | None = None,
                  on_record: Callable[[Task, ToolCall], None] | None = None,
                  on_effect: Callable[[Effect], None] | None = None):
@@ -78,6 +97,8 @@ class ToolDispatcher:
         self.top_k_skills = top_k_skills
         self.schema_budget_tokens = schema_budget_tokens
         self.small_catalogue = small_catalogue
+        self.index_tokens = index_tokens             # the index of tools left out; 0: none
+        self.select_model_above = select_model_above   # a model picks the tools above this many; 0: never
         self.always = always   # offered in every task, like a task type's pin_tools (e.g. web_search)
         self.on_record = on_record or (lambda task, call: None)
         self.on_effect = on_effect or (lambda effect: None)   # the harness persists effects
@@ -110,31 +131,79 @@ class ToolDispatcher:
                 return True
             if globs is not None and not any(fnmatch.fnmatchcase(spec.name, p) for p in globs):
                 return False
-            return skill is None or not skill["tools"] or any(fnmatch.fnmatchcase(spec.name, p) for p in skill["tools"])
+            if skill is None or not skill["tools"]:
+                return True
+            return any(fnmatch.fnmatchcase(spec.name, p) for p in (*skill["tools"], *skill.get("approved", ())))
 
         return {s.name: s for s in visible if offered(s)}
 
-    def select(self, task: Task, requirements: str) -> list[str]:
-        """Choose the active set: pinned tools, then the skills and the tools closest to
+    def select(self, task: Task, requirements: str, picked: list[str] | None = None) -> list[str]:
+        """Choose the active set: pinned tools, then the skills and tools closest to
         `requirements` (the request, a turn's goal, or a skill's instructions), each with its own
-        quota, so the model sees a few good candidates rather than the whole catalogue. Returns the
-        names added."""
+        quota, so the model sees a few good candidates rather than the whole catalogue. `picked`:
+        what a model chose for `requirements` (pick_candidates), first. Returns the names added."""
         eligible = self.eligible(task)
-        pinned = [n for n in (*CONTROL_TOOL_NAMES, *task.task_type.settings.pin_tools, *self.always, *SKILL_TOOL_NAMES,
-                              *CRON_TOOL_NAMES) if n in eligible]
+        pinned = self._pinned(task, eligible)
         if len(eligible) <= self.small_catalogue:
             chosen = list(eligible)
         else:
             rest = [s for n, s in sorted(eligible.items()) if n not in pinned and n not in task.active_tools]
             skills = [s for s in rest if s.handler.kind is HandlerKind.SKILL]
             tools = [s for s in rest if s.handler.kind is not HandlerKind.SKILL]
+            first = [eligible[n] for n in dict.fromkeys(picked or ()) if n in eligible and n not in pinned
+                     and n not in task.active_tools]
+            ranked_skills = [*(s for s in first if s.handler.kind is HandlerKind.SKILL),
+                             *self.registry.search(requirements, skills, self.top_k_skills)]
+            ranked_tools = [*(s for s in first if s.handler.kind is not HandlerKind.SKILL),
+                            *self.registry.search(requirements, tools, self.top_k)]
             chosen, budget = list(pinned), self.schema_budget_tokens - sum(eligible[n].schema_tokens() for n in pinned)
-            for spec in [*self.registry.search(requirements, skills, self.top_k_skills),
-                         *self.registry.search(requirements, tools, self.top_k)]:
-                if spec.schema_tokens() <= budget:
-                    chosen.append(spec.name)
-                    budget -= spec.schema_tokens()
+            for ranked, quota in ((ranked_skills, self.top_k_skills), (ranked_tools, self.top_k)):
+                taken = 0
+                for spec in ranked:
+                    if taken >= quota:
+                        break
+                    if spec.name not in chosen and spec.schema_tokens() <= budget:
+                        chosen.append(spec.name)
+                        budget -= spec.schema_tokens()
+                        taken += 1
         return self._activate(task, chosen)
+
+    def _pinned(self, task: Task, eligible: dict[str, ToolSpec]) -> list[str]:
+        return [n for n in (*CONTROL_TOOL_NAMES, *task.task_type.settings.pin_tools, *self.always, *SKILL_TOOL_NAMES,
+                            *CRON_TOOL_NAMES) if n in eligible]
+
+    def pick_candidates(self, task: Task, requirements: str, limit: int = 300) -> list[ToolSpec]:
+        """What a model may pick from for `requirements` (`select_model_above`): the eligible tools
+        and skills that are not pinned, the closest first, at most `limit`; [] when the catalogue is
+        small enough for search alone."""
+        if not self.select_model_above:
+            return []
+        eligible = self.eligible(task)
+        pinned = set(self._pinned(task, eligible))
+        rest = [s for n, s in sorted(eligible.items()) if n not in pinned and s.handler.kind is not HandlerKind.CONTROL]
+        if len(eligible) <= max(self.small_catalogue, self.select_model_above):
+            return []
+        return _closest_first(self.registry.search(requirements, rest, len(rest)), rest)[:limit]
+
+    def index(self, task: Task, requirements: str) -> tuple[str, int]:
+        """The eligible tools and skills not active, closest to `requirements` first, one line each,
+        within `index_tokens`: (lines, how many did not fit)."""
+        if not self.index_tokens:
+            return "", 0
+        eligible = self.eligible(task)
+        rest = [s for n, s in sorted(eligible.items())
+                if n not in task.active_tools and s.handler.kind is not HandlerKind.CONTROL]
+        if not rest:
+            return "", 0
+        ordered = _closest_first(self.registry.search(requirements, rest, len(rest)), rest)
+        lines, room = [], self.index_tokens * 4
+        for spec in ordered:
+            line = index_line(spec)
+            if len(line) + 1 > room:
+                break
+            lines.append(line)
+            room -= len(line) + 1
+        return "\n".join(lines), len(ordered) - len(lines)
 
     def discover(self, task: Task, query: str, k: int = 5) -> list[dict[str, str]]:
         """search_tools: activate matching eligible tools and skills from the next step."""
@@ -147,11 +216,14 @@ class ToolDispatcher:
 
     def enter_skill(self, task: Task, query: str) -> list[str]:
         """A skill now runs (task.active_skill is set): drop what it does not offer from the active
-        set (other skills; tools outside its `tools`), then add the tools closest to the skill
-        itself. Returns the names added."""
+        set (other skills; tools outside its `tools`), then add the tools it pre-approves and the
+        tools closest to the skill itself. Returns the names added."""
         eligible = self.eligible(task)
         task.active_tools[:] = [n for n in task.active_tools if n in eligible]
-        return self.select(task, query)
+        approved = (task.active_skill or {}).get("approved") or ()
+        named = [n for n in sorted(eligible) if eligible[n].handler.kind is not HandlerKind.SKILL
+                 and any(fnmatch.fnmatchcase(n, p) for p in approved)][:self.top_k]
+        return self._activate(task, named) + self.select(task, query)
     def active(self, task: Task) -> list[ToolSpec]:
         """The tools offered this step: active and still eligible."""
         eligible = self.eligible(task)
@@ -193,6 +265,10 @@ class ToolDispatcher:
             return Outcome.CONTROL
 
         decision: Decision = self.policy.decide(spec, call.arguments, task)
+        if decision.kind is DecisionKind.ALLOW and decision.rule != "grant" \
+                and mode_of(spec, self.prefs.modes_for(task.owner)) == "ask":
+            # The owner's own switch: stricter than policy, auto mode and a skill's pre-approvals.
+            decision = Decision.ask(f"you asked to approve each call of {spec.name}", "user:ask")
         call.decision, call.reason = decision.kind.value, f"{decision.rule}: {decision.reason}".strip(": ")
         if decision.kind is DecisionKind.DENY:
             call.status = ToolCallStatus.DENIED
@@ -251,8 +327,9 @@ class ToolDispatcher:
             effect = Effect(task_id=task.id, call_id=call.id, tool=spec.name, kind=spec.effective_effects.value,
                             target=_target(call.arguments), idempotency_key=f"{task.id}:{call.id}")
             self.on_effect(effect)
+        timeout = timeout_of(self.prefs, spec)   # an admin's (Tools tab), else the spec's
         context = CallContext(task_id=task.id, call_id=call.id, auth=task.auth,
-                              deadline=time.time() + spec.timeout)
+                              deadline=time.time() + timeout)
         with span(f"execute_tool {spec.name}", gen_ai__operation__name="execute_tool", gen_ai__tool__name=spec.name,
                   gen_ai__tool__call__id=call.id, agenticwf__task__id=task.id,
                   agenticwf__tool__handler=spec.handler.kind.value) as current:
@@ -260,9 +337,9 @@ class ToolDispatcher:
             call.started_at, call.trace_id = time.time(), trace_id()
             try:
                 with use_auth_context(task.auth):
-                    result = await asyncio.wait_for(self._invoke(spec, context, call.arguments), spec.timeout)
+                    result = await asyncio.wait_for(self._invoke(spec, context, call.arguments), timeout)
             except asyncio.TimeoutError:
-                result = ToolResult.error("timeout", f"{spec.name} did not finish within {spec.timeout:g} s; it may "
+                result = ToolResult.error("timeout", f"{spec.name} did not finish within {timeout:g} s; it may "
                                           "still take effect, so check before trying again")
             except Exception as exc:   # a bug in the handler; the model gets a generic error
                 LOG.exception("tool %s failed in task %s", spec.name, task.id)

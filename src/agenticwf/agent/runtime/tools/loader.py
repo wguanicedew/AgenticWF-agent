@@ -4,9 +4,12 @@ Load tool definitions from Markdown files: YAML front matter (the spec) + body (
     <system dir>/tools/<tool_name>.md                 system tools
     <plugin dir>/<plugin>/tools/<tool_name>.md        plugins, exposed as <plugin>__<tool>
                                                       (agenticwf.agent.runtime.plugins finds the plugins)
-    runtime/defaults/core-tools/<name>.md             the wording of the runtime's own tools (core_tool_text)
+    runtime/defaults/core-tools/<name>.md             the wording of the runtime's own tools (core_tool_text);
+                                                      a task type may reword them (core_tool_rewording)
 
-An invalid file is reported and skipped, never loaded partly.
+An invalid file is reported and skipped, never loaded partly. Definitions written as for other
+hosts are read too: the schema as `parameters` (OpenAI and Codex function tools) or `inputSchema`
+(MCP), and without a `summary`, the first sentence of `description` (front matter or body).
 """
 
 from __future__ import annotations
@@ -65,9 +68,60 @@ def core_tool_text(name: str) -> tuple[str, str, dict[str, Any]]:
     return str(meta["summary"]).strip(), description, schema
 
 
+def core_tool_names() -> tuple[str, ...]:
+    """The runtime's own tools whose wording a task type may change (`skill.md` is the template
+    every skill is offered with, not one tool)."""
+    return tuple(sorted(p.stem for p in CORE_TOOLS_DIR.glob("*.md") if p.stem not in ("README", "skill")))
+
+
+def core_tool_rewording(name: str, text: str) -> str:
+    """The description in a task type's core-tools/<name>.md. Its front matter must be the packaged
+    file's as it is: the arguments are read by code, so only the wording below it changes."""
+    if name not in core_tool_names():
+        raise ToolDefinitionError(f"no core tool {name!r}")
+    meta, description = split_front_matter(text)
+    packaged, _ = split_front_matter((CORE_TOOLS_DIR / f"{name}.md").read_text())
+    if meta != packaged:
+        raise ToolDefinitionError(f"core-tools/{name}.md: keep the front matter as it is; change the description below it")
+    if not description:
+        raise ToolDefinitionError(f"core-tools/{name}.md: the description is empty")
+    return description
+
+
+def reword(schemas: list[dict[str, Any]], texts: dict[str, str]) -> list[dict[str, Any]]:
+    """Model schemas with a task type's wording of core tools. What the runtime appends to a packaged
+    description (search_code's repositories, web_search's providers) stays after the new one."""
+    if not texts:
+        return schemas
+    out = []
+    for schema in schemas:
+        text = texts.get(schema["name"])
+        if text is not None:
+            packaged = core_tool_text(schema["name"])[1].rstrip()
+            live = schema["description"]
+            schema = {**schema, "description": text.rstrip() + (live[len(packaged):] if live.startswith(packaged) else "")}
+        out.append(schema)
+    return out
+
+
+def _first_sentence(text: str) -> str:
+    text = " ".join(text.split())
+    end = next((i + 1 for i, c in enumerate(text) if c in ".!?" and (i + 1 == len(text) or text[i + 1] == " ")), len(text))
+    text = text[:end]
+    return text if len(text) <= SUMMARY_MAX else text[:SUMMARY_MAX - 1].rstrip() + "…"
+
+
 def spec_from_definition(meta: dict[str, Any], description: str, source: ToolSource,
                          name: str | None = None) -> ToolSpec:
     """Build a ToolSpec from parsed front matter (also used for database-registered tools)."""
+    meta = dict(meta)
+    for alias in ("parameters", "inputSchema"):   # OpenAI / Codex function tools, MCP
+        if meta.get("input_schema") is None and meta.get(alias) is not None:
+            meta["input_schema"] = meta[alias]
+    if isinstance(meta.get("description"), str) and meta["description"].strip():
+        description = description or meta["description"].strip()
+        if not meta.get("summary"):
+            meta["summary"] = _first_sentence(meta["description"])
     name = name or meta.get("name")
     if not isinstance(name, str) or not NAME_RE.match(name.split("__")[-1]):
         raise ToolDefinitionError(f"invalid tool name {name!r}")
@@ -145,16 +199,18 @@ def load_tools_dir(directory: Path, source: ToolSource) -> tuple[list[ToolSpec],
     return specs, errors
 
 
-def load_plugin_tools(plugin: Path, source: ToolSource) -> tuple[list[ToolSpec], list[str]]:
-    """Load <plugin>/tools/*.md, naming each tool <plugin>__<tool>. Returns (specs, errors)."""
+def load_plugin_tools(plugin: Path, source: ToolSource, name: str | None = None) -> tuple[list[ToolSpec], list[str]]:
+    """Load <plugin>/tools/*.md, naming each tool <name>__<tool> (`name`: the plugin's, by default
+    its directory's). Returns (specs, errors)."""
     specs, errors = [], []
+    name = name or plugin.name
     for path in sorted((plugin / "tools").glob("*.md")):
         try:
             tool_source = replace(source, location=str(path))
             meta, _ = split_front_matter(path.read_text())
             if meta.get("name") != path.stem:
                 raise ToolDefinitionError("front matter name does not match file name")
-            specs.append(load_tool_file(path, tool_source, name=f"{plugin.name}__{path.stem}"))
+            specs.append(load_tool_file(path, tool_source, name=f"{name}__{path.stem}"))
         except (ToolDefinitionError, OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
             errors.append(f"{path}: {exc}")
     return specs, errors

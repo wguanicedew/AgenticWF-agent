@@ -28,6 +28,7 @@ from agenticwf.agent.runtime.llm.catalog import ModelCatalog, ModelEntry
 from agenticwf.agent.runtime.llm.routing import (TIERS, Choice, OutputEstimator, RoutingSettings, estimate_tokens, raise_tier,
                                  tier_rank)
 from agenticwf.agent.runtime.llm.usage import InMemoryUsage, UsageStore
+from agenticwf.agent.runtime.overrides import BUDGETS, PURPOSE, ROUTING, SettingOverrides, coerced
 from agenticwf.agent.runtime.telemetry import annotate, fail, record_model_call, span, trace_id
 
 LOG = get_logger(__name__)
@@ -80,10 +81,12 @@ class ModelRouter(LLM):
     chooses for its purpose (agenticwf.agent.runtime.llm.routing, docs/model-routing.md); records what it cost."""
 
     def __init__(self, catalog: ModelCatalog, factory: Factory = build_adapter,
-                 settings: RoutingSettings | None = None, usage: UsageStore | None = None):
+                 settings: RoutingSettings | None = None, usage: UsageStore | None = None,
+                 overrides: SettingOverrides | None = None):
         self.catalog = catalog
         self.factory = factory
-        self.settings = settings or RoutingSettings()
+        self.configured = settings or RoutingSettings()   # agent.cfg's
+        self.overrides = overrides   # [llm.routing], [llm.purpose], [llm.budgets] as admins changed them on the admin page
         self.usage = usage or InMemoryUsage()
         self.outputs = OutputEstimator()
         self.adjusted: dict[str, str] = {}          # purpose -> tier, from feedback (feedback = adjust)
@@ -93,6 +96,17 @@ class ModelRouter(LLM):
             self.outputs.seed(self.usage.averages())
         except Exception:   # no table yet (first start): averages build up from now
             LOG.debug("no earlier usage to seed output estimates from")
+
+    @property
+    def settings(self) -> RoutingSettings:
+        """agent.cfg's routing, with what admins changed on the admin page (for everyone)."""
+        if self.overrides is None:
+            return self.configured
+        return self.configured.changed(*(coerced(s, self.overrides.values(s)) for s in (ROUTING, PURPOSE, BUDGETS)))
+
+    @settings.setter
+    def settings(self, value: RoutingSettings) -> None:
+        self.configured = value
 
     def adapter(self, entry: ModelEntry) -> LLM:
         refusal = self.catalog.endpoint_refusal(entry, resolve=False)   # at every call: the allow-list may have changed

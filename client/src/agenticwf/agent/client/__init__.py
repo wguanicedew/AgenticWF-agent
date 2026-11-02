@@ -1,7 +1,7 @@
 """
 A small Python client for the agent API (docs/api.md): chat sessions and background tasks.
 
-    agent = AgentClient.from_env()      # as `agenticwf agent` does: the sign-in of `agenticwf login`
+    agent = AgentClient.from_env()      # as `agenticwf agent` does: AGENTICWF_AGENT_URL is enough
     agent = AgentClient("http://127.0.0.1:8765", bearer=token)        # the personal agent's token
 
     sid = agent.create_session("demo")["id"]
@@ -14,7 +14,9 @@ Errors raise AgentClientError (the API's `detail`). It has no dependency on the 
 
 from __future__ import annotations
 
+import os
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 import httpx
@@ -44,14 +46,18 @@ class AgentClient:
 
     @classmethod
     def from_env(cls, url: str | None = None, token: str | None = None, **options) -> "AgentClient":
-        """The agent and its tokens as `agenticwf` finds them (agenticwf_auth_cli.service_access):
-        AGENTICWF_AGENT_URL and AGENTICWF_AGENT_TOKEN (the personal agent's own token), else the
-        Logto sign-in and AGENTICWF_API_URL. Logto tokens are refreshed as they expire. `options`
-        are Config fields (auth_url, api_url, …) and the constructor's (timeout, http)."""
+        """The agent and its tokens as `agenticwf` finds them (agenticwf_auth_cli.service_access).
+        AGENTICWF_AGENT_URL alone is enough: the agent tells how it signs clients in. Behind Caddy
+        that is the Logto sign-in of `agenticwf login`, whose settings the server publishes; the
+        personal agent has its own token: AGENTICWF_AGENT_TOKEN, a sign-in link as the URL, or on
+        this machine its home's token file ($AGENTICWF_AGENT_HOME or ~/.agenticwf-agent). Without
+        the URL, the agent is at AGENTICWF_API_URL. Logto tokens are refreshed as they expire.
+        `options` are Config fields (auth_url, api_url, …) and the constructor's (timeout, http)."""
         from agenticwf_auth_cli import service_access
 
         auth = {k: options.pop(k) for k in ("auth_url", "api_url", "client_id", "resource", "scopes") if k in options}
-        base, bearer = service_access("agent", "", url=url, token=token, **auth)
+        home = Path(os.environ.get("AGENTICWF_AGENT_HOME") or Path.home() / ".agenticwf-agent")
+        base, bearer = service_access("agent", "", url=url, token=token, token_file=home / "token", **auth)
         return cls(base, headers=lambda method, url: {"Authorization": f"Bearer {bearer()}"}, **options)
 
     def close(self) -> None:

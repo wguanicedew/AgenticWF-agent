@@ -40,6 +40,10 @@ def test_a_chat_trace_has_the_steps_and_their_tool_calls(tmp_path):
         assert tool["name"] == "read_thing" and '"value": "x"' in tool["arguments"]
         assert tool["result"]["content"] == "thing" and tool["status"] == "succeeded" and tool["seconds"] is not None
         assert trace["totals"]["tool_calls"] == 1
+        # who decided the tasks and the plan: the split is off and no planner ran, so one task, one turn
+        assert trace["intent"]["intake"] == "single"
+        assert task["planned_by"] == "" and [p["goal"] for p in task["plan"]] == ["what is it?"]
+        assert task["model_plan"] == [] and task["escalation_log"] == []
 
         assert alice.get(f"/api/v1/sessions/{sid}/trace", params={"intent": sent["intent"]}).json()["intents"]
         assert alice.get(f"/api/v1/sessions/{sid}/trace", params={"intent": "nope"}).status_code == 404

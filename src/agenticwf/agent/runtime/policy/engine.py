@@ -6,13 +6,16 @@ tool results, or anything the model wrote.
 
 Rule order for decide():
     deployment rules (every deny, then ask)  →  missing scopes (deny)  →  task-type allow/deny list
-    →  mode (plan: only tools without effects)  →  grants  →  tool default
+    →  mode (plan: only tools without effects)  →  grants  →  the running skill's pre-approvals
+    →  tool default
        (user-defined tools: never looser than the deployment's user-tool default)
     →  auto mode turns ask into allow where permitted (never for user-defined tools)
 
 User-declared fields never loosen policy: a user-defined tool's declared effects are not trusted
 (it counts as `external`), and auto mode does not approve it. Skills are tools that load
 instructions and act on nothing: the owner's own load without approval, others' shared skills ask.
+A running skill's `allowed-tools` waive the `ask` of tools operators installed (a skill operators
+installed, or the owner's own); never a deployment rule, a denial, or a tool users defined.
 """
 
 from __future__ import annotations
@@ -87,6 +90,7 @@ class PolicyConfig:
     user_tool_default: Approval = Approval.ASK
     auto_mode_allowed: bool = True
     auto_mode_for_machines: bool = False
+    skill_preapproval: bool = True   # a running skill's allowed-tools waive their tools' own `ask`
 
     @classmethod
     def from_yaml(cls, path: Path) -> "PolicyConfig":
@@ -99,7 +103,8 @@ class PolicyConfig:
         return cls(rules=rules,
                    user_tool_default=Approval(data.get("user_tool_default", "ask")),
                    auto_mode_allowed=bool(data.get("auto_mode_allowed", True)),
-                   auto_mode_for_machines=bool(data.get("auto_mode_for_machines", False)))
+                   auto_mode_for_machines=bool(data.get("auto_mode_for_machines", False)),
+                   skill_preapproval=bool(data.get("skill_preapproval", True)))
 
 
 _STRICTNESS = {Approval.AUTO: 0, Approval.ASK: 1, Approval.DENY: 2}
@@ -125,6 +130,8 @@ class PolicyEngine:
             return Decision.allow("approved earlier in this task", "grant")
 
         approval = spec.approval
+        if approval is not Approval.DENY and self._preapproved(spec, task):
+            return Decision.allow(f"pre-approved by the skill {task.active_skill['id']}", "skill:allowed-tools")
         # A skill of the task's owner is their own instructions: no approval to load it. Someone
         # else's shared skill is text the owner has not seen: it asks like any user-defined tool.
         own_skill = spec.handler.kind is HandlerKind.SKILL and spec.source.owner == task.owner
@@ -170,6 +177,16 @@ class PolicyEngine:
         if task.mode is Mode.PLAN and spec.effective_effects is not Effects.NONE:
             return Decision.deny("plan mode allows only tools without effects", "mode:plan")
         return Decision.allow()
+
+    def _preapproved(self, spec: ToolSpec, task: Task) -> bool:
+        """In the running skill's allowed-tools (only kept when the skill may grant them: see
+        SkillCatalog.activate), and a tool operators installed."""
+        skill = getattr(task, "active_skill", None)
+        if not self.config.skill_preapproval or not skill or spec.source.user_defined:
+            return False
+        if spec.handler.kind is HandlerKind.SKILL:
+            return False
+        return any(fnmatch.fnmatchcase(spec.name, p) for p in skill.get("approved") or ())
 
     def _auto_permitted(self, task: Task) -> bool:
         if not self.config.auto_mode_allowed:

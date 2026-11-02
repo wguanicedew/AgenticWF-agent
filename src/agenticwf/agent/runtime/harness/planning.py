@@ -82,3 +82,14 @@ def parse_plan(text: str, max_items: int) -> list[PlanItem] | None:
         items.append(item)
         seen.add(item.id)
     return items
+
+
+def parse_picks(text: str, known: set[str], limit: int) -> list[str]:
+    """The tool names a model picked (prompts/select_tools.md): {"tools": [...]} or a bare list;
+    names it made up are dropped."""
+    found = first_json(text or "")
+    if isinstance(found, dict):
+        found = found.get("tools")
+    if not isinstance(found, list):
+        return []
+    return [n for n in dict.fromkeys(str(x) for x in found) if n in known][:limit]

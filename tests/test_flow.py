@@ -5,6 +5,7 @@ import json
 import time
 
 from agenticwf.agent.runtime.bootstrap import EngineOptions, RuntimeConfig, build_thread_manager
+from agenticwf.agent.runtime.context.task_types import DESCRIPTION_CHARS, type_description
 from agenticwf.agent.runtime.harness.planning import IntakeSettings, parse_plan, parse_tasks
 from agenticwf.agent.runtime.harness.store import InMemoryStore, Job
 from agenticwf.agent.runtime.llm.base import LLMResponse
@@ -54,6 +55,9 @@ def test_intent_splits_into_typed_dependent_tasks(tmp_path):
         assert [t["task_type"] for t in created] == ["review", "default"]
         assert created[1]["depends_on"] == [created[0]["task"]]
 
+        listed = llm.requests[0].messages[-1].content   # the split call: each type with what it is for
+        assert "- default: General work that no other type fits" in listed and "- review" in listed
+
         b_request = llm.requests[2]   # task B saw task A's result, not its steps
         assert "<results of earlier tasks>" in b_request.messages[-3].content
         assert "the method is X" in b_request.messages[-3].content
@@ -66,6 +70,20 @@ def test_intent_splits_into_typed_dependent_tasks(tmp_path):
         assert store.load_reply(intent_id).task_ids == thread.task_ids()
         assert all(store.load_result(t).status == "succeeded" for t in thread.task_ids())
     asyncio.run(main())
+
+
+def test_a_type_says_what_it_is_for(tmp_path):
+    typed = tmp_path / "review"
+    typed.mkdir()
+    (typed / "AGENTS.md").write_text("# Review\n\n## Rules\nCheck a change\nagainst the style guide.\n\nMore.\n")
+    assert type_description(typed) == "Check a change against the style guide."   # its AGENTS.md
+    (typed / "task.yaml").write_text("description: Review a pull request\nmax_steps: 7\n")
+    assert type_description(typed) == "Review a pull request"                     # task.yaml first
+    (typed / "task.yaml").write_text("description: " + "x" * 500 + "\n")
+    assert len(type_description(typed)) == DESCRIPTION_CHARS
+    (typed / "task.yaml").write_text("max_steps: 7\n")
+    (typed / "AGENTS.md").write_text("# Only a title\n")
+    assert type_description(typed) == ""
 
 
 def test_requested_type_applies_to_every_task(tmp_path):

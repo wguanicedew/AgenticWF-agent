@@ -30,7 +30,10 @@
     agent_knowledge_services  knowledge services users connect beside agent.cfg's (token encrypted)
     agent_knowledge_prefs     knowledge bases or services a user switched off for their tasks
     agent_knowledge_options   the search tools and kb_research preset a user chose for their tasks
-    agent_tool_prefs      tools, plugins or MCP endpoints a user switched off for their tasks
+    agent_tool_prefs      tools, plugins or MCP endpoints a user switched off, or to ask first, for their tasks
+    agent_code_repos      source repositories users add for search_code and read_file
+    agent_setting_overrides  harness, routing and task-type settings changed on the admin page,
+                          for everyone (admins) or for one person's tasks, over agent.cfg and task.yaml
 
 Every owned row carries ``(owner_subject, owner_org)`` from the AuthContext that created it
 (agenticwf.agent.runtime.types.owner_key); readers filter every query on it. Task and intent snapshots are the
@@ -336,14 +339,59 @@ class KnowledgeOptionRow(BASE, _Owned):
 
 
 class ToolPrefRow(BASE, _Owned):
-    """A tool, or every tool of a plugin or an MCP endpoint, one user switched off for their tasks
-    (agenticwf.agent.runtime.tools.prefs). Only switched-off ones have a row."""
+    """A tool, or every tool of a plugin or an MCP endpoint, one user switched off, or to ask before
+    each call, for their tasks (agenticwf.agent.runtime.tools.prefs). Only those not `on` have a row."""
 
     __tablename__ = "agent_tool_prefs"
     __table_args__ = (Index("agent_tool_prefs_owner_idx", "owner_subject", "owner_org"),)
 
     id = Column(String(64), primary_key=True)             # sha256 of (owner, target)
     target = Column(String(400), nullable=False)          # tool:<name> | plugin:<id> | mcp:<endpoint id>
+    mode = Column(String(8), nullable=True)               # ask | off; NULL (rows from before): off
+
+
+class ToolSettingRow(BASE, ModelBase):
+    """A deployment-wide setting of one tool an admin changed on the Tools tab: its timeout
+    (agenticwf.agent.runtime.tools.prefs). Only changed tools have a row."""
+
+    __tablename__ = "agent_tool_settings"
+
+    name = Column(String(400), primary_key=True)          # the tool's name, as tasks call it
+    timeout = Column(Float, nullable=True)                # seconds; None: the tool's own
+    updated_by = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
+class SettingOverrideRow(BASE, ModelBase):
+    """One setting changed on the admin page (agenticwf.agent.runtime.overrides): for everyone
+    (owner NULL, admins) or for one person's tasks. agent.cfg and task.yaml are never written."""
+
+    __tablename__ = "agent_setting_overrides"
+    __table_args__ = (Index("agent_setting_overrides_section_idx", "section"),)
+
+    id = Column(String(64), primary_key=True)             # sha256 of (owner, section, key)
+    owner_subject = Column(String(255), nullable=True)    # NULL: everyone's
+    owner_org = Column(String(255), nullable=True)
+    section = Column(String(400), nullable=False)         # harness | llm.routing | task_type:<id>
+    key = Column(String(255), nullable=False)             # llm.budgets: also user.<subject>, max_tier.organization.<org>
+    value = Column(Text, nullable=False)                  # JSON
+    updated_by = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
+class CodeRepoRow(BASE, _Owned):
+    """A source repository a user added for search_code and read_file (agenticwf.agent.runtime.code),
+    cloned into <[code] root>/.users/<name>. Names are unique: the model reads <name>/<path>."""
+
+    __tablename__ = "agent_code_repos"
+
+    name = Column(String(64), primary_key=True)
+    url = Column(String(2048), nullable=False)
+    branch = Column(String(200), nullable=True)
+    label = Column(String(200), nullable=True)
+    visibility = Column(String(16), nullable=False, default="user")   # user | organization | all
+    error = Column(Text, nullable=True)                   # the last clone or update failure
+    synced_at = Column(DateTime, nullable=True)           # the last clone or update that worked
 
 
 # --- crons (docs/cron.md) -----------------------------------------------------------------------------

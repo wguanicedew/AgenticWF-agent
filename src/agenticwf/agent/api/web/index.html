@@ -491,6 +491,13 @@ function renderTrace(t) {
         chip(money(tot.cost, unit)), chip(clock(t.intent.received_at)),
         ...t.traces.map(x => traceLink(x.url, x.trace_id)));
   box.append(el('div', 'tr-req', t.intent.text));
+  // how the request became tasks (intake) and how each task was planned: who decided, and what
+  const INTAKE = {planned: 'tasks fixed in advance (cron)', skill: 'a /skill request: one task running that skill',
+    split: 'the split model divided the request into typed tasks', single: 'one task: the intake split is off'};
+  const intake = t.intent.intake || '';
+  if (intake) box.append(block('Intake', (INTAKE[intake] || intake) +
+    (t.intent.task_type ? `\ntask type requested: ${t.intent.task_type}` : '\ntask type: ' + t.tasks.map(x => x.task_type).join(', ') +
+      (intake === 'split' ? ' (chosen by the split model)' : ' (none requested: the default)'))));
   for (const task of t.tasks) {
     const card = el('div', 'tr-task'), h = el('div', 'h');
     h.append(el('span', '', task.task_type || 'task'));
@@ -501,8 +508,14 @@ function renderTrace(t) {
     if (t.tasks.length > 1 && task.input) card.append(el('div', 'tr-req', task.input));
     if ((task.memories || []).length) card.append(fold([el('b', '', 'Recalled memories'), chip(String(task.memories.length))],
       [el('pre', '', task.memories.map(m => '- ' + m.text).join('\n'))]));
-    if (task.plan.length > 1) card.append(fold([el('b', '', 'Plan'), chip(task.plan.length + ' items')],
+    const planBy = task.planned_by ? `by the ${task.planned_by}` : 'no planning step: the request is the one turn';
+    card.append(fold([el('b', '', 'Plan'), chip(task.plan.length + (task.plan.length === 1 ? ' item' : ' items')), chip(planBy)],
       [el('pre', '', task.plan.map((p, i) => `${i + 1}. ${p.goal}${p.phase ? '  [' + p.phase + ']' : ''}`).join('\n'))]));
+    if ((task.model_plan || []).length) card.append(fold([el('b', '', 'Model\'s working plan'), chip('update_plan'),
+      chip(task.model_phase ? 'phase: ' + task.model_phase : '')].filter(Boolean),
+      [el('pre', '', task.model_plan.map(s => `[${s.status}] ${s.text}`).join('\n'))]));
+    if ((task.escalation_log || []).length) card.append(block('Escalations',
+      task.escalation_log.map(e => `${e.model || 'model'} → tier ${e.tier}: ${e.evidence}`).join('\n')));
     for (const turn of task.turns) {
       const tv = el('div', 'tr-turn');
       if (task.turns.length > 1 || task.plan.length > 1) {

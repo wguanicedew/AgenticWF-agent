@@ -6,14 +6,21 @@ PluginManager: finds plugins and reads what each provides.
 
     <plugin>/
       plugin.yaml                           optional: version, description, enabled, access, mcp_servers
+      .claude-plugin/plugin.json            optional: a Claude Code (or .codex-plugin/: Codex) plugin's
+                                            manifest (agenticwf.agent.runtime.plugins.manifest)
       .mcp.json                             optional: MCP endpoints in the common mcpServers format
       task-types/<type>/                    task types, named <plugin>.<type>
       tools/<tool>.md                       tools, named <plugin>__<tool>
       skills/<skill>/SKILL.md               skills, named <plugin>.<skill> (agenticwf.agent.runtime.skills)
+      commands/<command>.md                 Claude Code commands, read as skills <plugin>.<command>
       crons/<cron>/CRON.md                  crons, named <plugin>.<cron> (agenticwf.agent.runtime.cron)
       handlers.py                           builtin handlers, refs <plugin>.<key> (system plugins only)
+                                            tools with `handler: {kind: command, argv: […]}` run a
+                                            program in the environment plugin.yaml's `environment`
+                                            sets up (system plugins only: .command)
 
-A plugin can provide any mix of these. The manager does not decide permissions or select tools:
+A plugin can provide any mix of these. Its name is the directory's, hyphens read as underscores
+(a Claude Code plugin `code-review` provides code_review__<tool> and skills code_review.<skill>). The manager does not decide permissions or select tools:
 it hands the ToolRegistry the plugins' tools (Markdown tools, and the tools their MCP endpoints
 expand into through agenticwf.agent.runtime.mcp), the TaskTypeResolver their task-type directories, and the
 admin page the catalogue.
@@ -46,8 +53,9 @@ from agenticwf.agent.runtime.context.task_types import NAME_RE as TYPE_RE
 from agenticwf.agent.runtime.mcp.endpoint import PREFIX_MAX, McpEndpoint, prefix_ok
 from agenticwf.agent.runtime.mcp.manager import McpExpansion, McpManager
 from agenticwf.agent.runtime.cron.definition import Cron, read_crons_dir
-from agenticwf.agent.runtime.plugins.manifest import ManifestError, PluginManifest, read_manifest
-from agenticwf.agent.runtime.skills.skill import Skill, read_skills_dir
+from agenticwf.agent.runtime.plugins.command import CredentialProvider, ShellEnvironment, command_handler
+from agenticwf.agent.runtime.plugins.manifest import ManifestError, PluginManifest, plugin_name, read_manifest
+from agenticwf.agent.runtime.skills.skill import Skill, read_commands_dir, read_skills_dir
 from agenticwf.agent.runtime.tools.loader import load_plugin_tools
 from agenticwf.agent.runtime.tools.spec import Handler, HandlerKind, HandlerRef, ToolSource, ToolSpec
 from agenticwf.agent.runtime.types import SYSTEM_SCOPE, Owner, scope_of
@@ -95,6 +103,7 @@ class Plugin:
     skills: list[Skill] = field(default_factory=list)                              # skills/<skill>/SKILL.md
     crons: list[Cron] = field(default_factory=list)                                # crons/<cron>/CRON.md
     handlers: dict[str, Handler] = field(default_factory=dict)                    # <plugin>.<key> -> callable
+    shell: ShellEnvironment | None = None                                         # its command tools' environment
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -146,7 +155,8 @@ class Plugin:
                 "skills": [{"id": k.id, "name": k.qualified, "tool": k.tool_name, "description": k.description}
                            for k in skills],
                 "crons": [{"id": c.id, "name": c.qualified, "description": c.description} for c in self.crons],
-                "handlers": sorted(self.handlers), "errors": list(self.errors)}
+                "handlers": sorted(self.handlers), "environment": self.shell.status() if self.shell else {},
+                "errors": list(self.errors)}
 
 
 def _tool_view(spec: ToolSpec) -> dict[str, Any]:
@@ -158,8 +168,10 @@ def _tool_view(spec: ToolSpec) -> dict[str, Any]:
 
 class PluginManager:
     def __init__(self, plugin_dirs: Iterable[Path] = (), user_sandbox: Callable[[Owner], Path | None] | None = None,
-                 settings: PluginSettings | None = None, mcp: McpManager | None = None):
+                 settings: PluginSettings | None = None, mcp: McpManager | None = None,
+                 credentials: CredentialProvider | None = None):
         self.plugin_dirs = [Path(p) for p in plugin_dirs]
+        self.credentials = credentials   # the task user's token or proxy for command tools (none yet)
         self.user_sandbox = user_sandbox
         self.settings = settings or PluginSettings()
         self.mcp = mcp or McpManager()
@@ -177,8 +189,9 @@ class PluginManager:
         errors: list[str] = []
         for directory in self.plugin_dirs:
             for root in _plugin_roots(directory, errors):
-                if root.name in plugins:
-                    errors.append(f"{root}: plugin {root.name!r} already loaded from {plugins[root.name].root}")
+                name = plugin_name(root)
+                if name in plugins:
+                    errors.append(f"{root}: plugin {name!r} already loaded from {plugins[name].root}")
                     continue
                 try:
                     plugin = self._read(root, "system", None)
@@ -189,9 +202,9 @@ class PluginManager:
                     LOG.exception("plugin %s could not be read", root)
                     errors.append(f"{root}: {type(exc).__name__}: {exc}")
                     continue
-                if root.name in self.settings.disabled:
+                if name in self.settings.disabled or root.name in self.settings.disabled:
                     plugin.enabled = False
-                plugins[root.name] = plugin
+                plugins[name] = plugin
         used = set()
         for plugin in plugins.values():
             for item in plugin.mcp_endpoints:
@@ -309,32 +322,61 @@ class PluginManager:
         plugin = self._system_plugins().get(ref.split(".", 1)[0])
         return plugin.handlers.get(ref) if plugin and plugin.enabled else None
 
+    def command_handler(self, spec: ToolSpec) -> Handler | None:
+        """The handler of a `kind: command` tool of an enabled system plugin."""
+        plugin = self._system_plugins().get(spec.source.plugin.partition(":")[2]) \
+            if spec.source.plugin.startswith(f"{SYSTEM_SCOPE}:") else None
+        if plugin is None or not plugin.enabled or plugin.shell is None:
+            return None
+        return command_handler(spec, plugin.name, plugin.root, plugin.shell, self.credentials)
+
     # --- reading a plugin --------------------------------------------------------------------------
     def _read(self, root: Path, source: str, owner: Owner | None) -> Plugin:
         """Read one plugin directory (no MCP connection yet). ManifestError: the plugin is unusable."""
         trusted = source == "system"
         manifest = read_manifest(root, trusted, owner)
-        plugin = Plugin(root.name, root, source, manifest, enabled=manifest.enabled, owner=owner,
+        name = plugin_name(root)
+        plugin = Plugin(name, root, source, manifest, enabled=manifest.enabled, owner=owner,
                         errors=list(manifest.errors))
         types_root = root / "task-types"
         if types_root.is_dir():
             for directory in sorted(p for p in types_root.iterdir() if p.is_dir() and TYPE_RE.match(p.name)):
                 files = tuple(n for n in INSTRUCTION_FILES if (directory / n).is_file())
-                plugin.task_types.append((f"{root.name}.{directory.name}", files))
+                plugin.task_types.append((f"{name}.{directory.name}", files))
         tool_source = (ToolSource("plugin", access=manifest.access, plugin=plugin.id) if trusted
                        else ToolSource("user_plugin", owner=owner, plugin=plugin.id))
-        plugin.tools, errors = load_plugin_tools(root, tool_source)
+        plugin.tools, errors = load_plugin_tools(root, tool_source, name)
         plugin.errors.extend(errors)
+        if trusted:
+            plugin.shell = ShellEnvironment(manifest.environment, root)
+        for spec in [t for t in plugin.tools if t.handler.kind is HandlerKind.COMMAND]:
+            argv = spec.handler.settings.get("argv")
+            if not trusted or not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
+                plugin.tools.remove(spec)
+                plugin.errors.append(f"{spec.source.location}: " + ("your own plugins cannot run commands" if not trusted
+                                     else "a command tool needs handler.argv: a list of strings"))
         if (root / HANDLERS_FILE).is_file():
             if trusted:
                 plugin.handlers = self._import_handlers(plugin, plugin.errors)
             else:
                 plugin.errors.append(f"{HANDLERS_FILE} ignored: your own plugins cannot run Python in the agent")
-        plugin.skills, errors = read_skills_dir(root / "skills", "plugin" if trusted else "user", owner=owner,
-                                                plugin=root.name, inherited=manifest.access)
-        plugin.errors.extend(errors)
-        plugin.crons, errors = read_crons_dir(root / "crons", "plugin" if trusted else "user", owner=owner,
-                                              plugin=root.name, inherited=manifest.access)
+        kind = "plugin" if trusted else "user"
+        for directory in (root / "skills", *manifest.skill_paths):
+            skills, errors = read_skills_dir(directory, kind, owner=owner, plugin=name, inherited=manifest.access)
+            plugin.skills.extend(skills)
+            plugin.errors.extend(errors)
+        for path in (root / "commands", *manifest.command_paths):   # Claude Code commands, read as skills
+            skills, errors = read_commands_dir(path, kind, owner=owner, plugin=name, inherited=manifest.access)
+            plugin.skills.extend(skills)
+            plugin.errors.extend(errors)
+        seen: set[str] = set()
+        for skill in list(plugin.skills):
+            if skill.name in seen:
+                plugin.skills.remove(skill)
+                plugin.errors.append(f"{skill.location}: skill {skill.name!r} is already provided by this plugin")
+            seen.add(skill.name)
+        plugin.crons, errors = read_crons_dir(root / "crons", kind, owner=owner,
+                                              plugin=name, inherited=manifest.access)
         plugin.errors.extend(errors)
         plugin.mcp_endpoints = [PluginEndpoint(e) for e in manifest.mcp_endpoints]
         plugin.tools = [t for t in (self._bind_mcp(plugin, spec) for spec in plugin.tools) if t is not None]
@@ -383,9 +425,9 @@ def _plugin_roots(directory: Path, errors: list[str]) -> list[Path]:
         return []
     roots = []
     for path in sorted(p for p in directory.iterdir() if p.is_dir() and not p.name.startswith(".")):
-        if prefix_ok(path.name):
+        if prefix_ok(plugin_name(path)):
             roots.append(path)
         else:
-            errors.append(f"{path}: invalid plugin name (lowercase letters, digits and single underscores, "
-                          f"at most {PREFIX_MAX} characters)")
+            errors.append(f"{path}: invalid plugin name (lowercase letters, digits and single hyphens or "
+                          f"underscores, at most {PREFIX_MAX} characters)")
     return roots

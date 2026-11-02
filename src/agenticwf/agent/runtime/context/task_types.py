@@ -7,6 +7,10 @@ Task types: which AGENTS.md and WORKFLOW.md a task runs with (docs/agent-runtime
     <user sandbox>/plugins/<plugin>/task-types/<type>/{AGENTS.md, WORKFLOW.md} a user's plugin types
     <user sandbox>/task-types/<type>/{AGENTS.md, WORKFLOW.md}                user-defined, per owner
 
+Besides the two instruction files, a type may have prompts/<name>.md (the per-type runtime prompts,
+TASK_PROMPTS) and core-tools/<tool>.md (its own wording of a runtime tool: the packaged file's front
+matter, a new description; agenticwf.agent.runtime.tools.loader.core_tool_rewording).
+
 Every type has an id, `<scope>:<name>` (agenticwf.agent.runtime.types.scope_of): `system:review`,
 `system:lint.check`, `user_alice:my-review`, `user_alice:mine.notes`. So a user's type may have
 the same name as a system type, or as another user's. A reference is an id or a bare name; a bare
@@ -15,9 +19,14 @@ a user's type carries instructions only (no task.yaml). Other users' types are n
 
 Each file resolves on its own, first match wins: the type's own file → system `default`.
 task.yaml (hard settings) only counts where operators put it: system types and system plugins.
-Users create, change and delete their own types (api/v1/task-types); system and plugin types
-are read-only there. The resolved files are snapshotted with the task, so later edits only affect
-new tasks.
+Each type also has a one-line description (type_description), which intake shows the split model
+so it can choose a type by what it is for, not only by its name. Admins may change a type's
+settings for everyone, and each person its `plan` for their own tasks, on the admin page: the
+database holds the changes (agenticwf.agent.runtime.overrides), task.yaml is never written.
+Users create, change and delete their own types (api/v1/task-types), also by cloning what the
+system ships (the admin page's Instructions tab); system and plugin types are read-only there. The
+instruction files and tool wording are snapshotted with the task, so later edits only affect new
+tasks; prompts are read when used.
 """
 
 from __future__ import annotations
@@ -25,6 +34,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -32,6 +42,8 @@ from typing import TYPE_CHECKING, Any, Callable
 import yaml
 
 from agenticwf.agent.core.common.logging import get_logger
+from agenticwf.agent.runtime.overrides import TASK_TYPE, SettingOverrides, effective
+from agenticwf.agent.runtime.tools.loader import ToolDefinitionError, core_tool_names, core_tool_rewording
 from agenticwf.agent.runtime.types import SYSTEM_SCOPE, Mode, Owner, scope_of
 
 if TYPE_CHECKING:
@@ -45,10 +57,14 @@ TYPE_REF_RE = re.compile(rf"^(?:[A-Za-z0-9_.@:-]{{1,255}}:)?{_TYPE_NAME}$")  # a
 INSTRUCTION_FILES = ("AGENTS.md", "WORKFLOW.md")
 PROMPTS_DIR = "prompts"                                       # runtime prompts (docs/agent-flow.md, Prompts)
 PROMPTS = ("split", "reply", "plan", "combine", "final_report", "compact", "consolidate", "compact_conversation",
-           "preamble", "cron_check", "cron_report")
+           "preamble", "cron_check", "cron_report", "select_tools")
 TASK_PROMPTS = ("plan", "combine", "final_report", "compact", "consolidate")   # a task type may override these
 PACKAGED_PROMPTS = Path(__file__).resolve().parents[1] / "defaults" / PROMPTS_DIR
+TOOL_WORDING_DIR = "core-tools"                               # a type's wording of runtime tools
 DEFAULT = "default"
+DEFAULT_ID = f"{SYSTEM_SCOPE}:{DEFAULT}"
+DEFAULT_DESCRIPTION = "General work that no other type fits"
+DESCRIPTION_CHARS = 200
 
 
 class TaskTypeError(Exception):
@@ -65,6 +81,41 @@ def type_id(ref: str) -> str:
     """A reference as an id: a bare name means the system's (how tools' `task_types` name types)."""
     scope, name = split_type_ref(ref)
     return f"{scope or SYSTEM_SCOPE}:{name}"
+
+
+def type_file_paths() -> tuple[str, ...]:
+    """Every file a task type may define, as a path inside its directory."""
+    return (*INSTRUCTION_FILES, *(f"{PROMPTS_DIR}/{p}.md" for p in TASK_PROMPTS),
+            *(f"{TOOL_WORDING_DIR}/{t}.md" for t in core_tool_names()))
+
+
+def type_files(directory: Path) -> tuple[str, ...]:
+    """The files a type's directory defines itself."""
+    return tuple(p for p in type_file_paths() if (directory / p).is_file())
+
+
+def type_description(directory: Path, name: str = "") -> str:
+    """What a type is for, in one line: task.yaml `description`, else the first paragraph of the
+    type's own AGENTS.md that is not a heading (user types have no task.yaml). `default`'s
+    AGENTS.md holds general rules, not a purpose: without a description it gets DEFAULT_DESCRIPTION."""
+    text = ""
+    path = directory / "task.yaml"
+    if path.is_file():
+        try:
+            data = yaml.safe_load(path.read_text(errors="replace"))
+        except yaml.YAMLError:
+            data = None
+        text = str(data.get("description") or "") if isinstance(data, dict) else ""
+    agents = directory / "AGENTS.md"
+    if not text.strip() and name == DEFAULT:
+        text = DEFAULT_DESCRIPTION
+    elif not text.strip() and agents.is_file():
+        for paragraph in re.split(r"\n\s*\n", agents.read_text(errors="replace")[:8192]):
+            text = " ".join(line for line in paragraph.splitlines() if not line.lstrip().startswith("#"))
+            if text.strip():
+                break
+    text = " ".join(text.split())
+    return text if len(text) <= DESCRIPTION_CHARS else text[:DESCRIPTION_CHARS - 1].rstrip() + "…"
 
 
 @dataclass(frozen=True)
@@ -126,6 +177,21 @@ class TaskTypeSettings:
             plan=data.get("plan"),
         )
 
+    def view(self) -> dict[str, Any]:
+        """As the admin page and the overrides name them (agenticwf.agent.runtime.overrides)."""
+        return {"plan": self.plan, "mode": self.mode.value, "modes": [m.value for m in self.modes],
+                "max_steps": self.max_steps, "model": self.model, "tier": self.tier, "budget": self.budget,
+                "pin_tools": list(self.pin_tools), "tools_allow": list(self.tools_allow),
+                "tools_deny": list(self.tools_deny), "knowledge": list(self.knowledge)}
+
+    @classmethod
+    def from_view(cls, view: dict[str, Any]) -> "TaskTypeSettings":
+        return cls(mode=Mode(view["mode"]), modes=tuple(Mode(m) for m in view["modes"]),
+                   tools_allow=tuple(view["tools_allow"]), tools_deny=tuple(view["tools_deny"]),
+                   pin_tools=tuple(view["pin_tools"]), model=view["model"], tier=view["tier"],
+                   budget=view["budget"], max_steps=view["max_steps"], knowledge=tuple(view["knowledge"]),
+                   plan=view["plan"])
+
 
 @dataclass(frozen=True)
 class ResolvedTaskType:
@@ -136,6 +202,7 @@ class ResolvedTaskType:
     user_defined: bool = False
     fell_back: bool = False   # requested type unknown: everything came from `default`
     resolved_id: str = ""     # the id the reference resolved to (`<scope>:<name>`)
+    tool_texts: tuple[tuple[str, str], ...] = ()   # (core tool, description) the type rewords
 
     @property
     def effective(self) -> str:
@@ -149,6 +216,10 @@ class ResolvedTaskType:
     def provenance(self) -> dict[str, str]:
         return {f.name: f.source for f in (self.agents, self.workflow)}
 
+    @property
+    def tool_wording(self) -> dict[str, str]:
+        return dict(getattr(self, "tool_texts", ()))   # tasks from before tool wording: none
+
 
 @dataclass(frozen=True)
 class TaskTypeInfo:
@@ -157,11 +228,12 @@ class TaskTypeInfo:
     name: str
     source: str               # system | plugin | user
     plugin: str | None = None
-    files: tuple[str, ...] = ()   # instruction files the type defines itself (others come from `default`)
+    files: tuple[str, ...] = ()   # files the type defines itself (others come from `default`): type_files()
     settings: TaskTypeSettings = field(default_factory=TaskTypeSettings)
     editable: bool = False
     scope: str = SYSTEM_SCOPE
     ref: str = ""             # what to choose it by: its bare name, or its id when the name is ambiguous
+    description: str = ""     # what it is for, one line (type_description); empty: nothing says
 
     @property
     def id(self) -> str:
@@ -171,20 +243,21 @@ class TaskTypeInfo:
         s = self.settings
         return {"id": self.id, "name": self.name, "scope": self.scope, "ref": self.ref or self.name,
                 "source": self.source, "plugin": self.plugin, "files": list(self.files),
-                "editable": self.editable,
+                "editable": self.editable, "description": self.description,
                 "settings": {"mode": s.mode.value, "model": s.model, "max_steps": s.max_steps, "plan": s.plan}}
 
 
 class TaskTypeResolver:
     def __init__(self, system_dir: Path, user_sandbox: Callable[[Owner], Path | None] | None = None,
                  max_file_bytes: int = 32 * 1024, plugin_dirs: list[Path] | None = None,
-                 plugins: "PluginManager | None" = None):
+                 plugins: "PluginManager | None" = None, overrides: SettingOverrides | None = None):
         from agenticwf.agent.runtime.plugins.manager import PluginManager   # agenticwf.agent.runtime.plugins imports the tools package
 
         self.system_dir = Path(system_dir)
         self.user_sandbox = user_sandbox
         self.max_file_bytes = max_file_bytes
         self.plugins = plugins or PluginManager(plugin_dirs or (), user_sandbox)
+        self.overrides = overrides   # settings changed on the admin page; None: task.yaml as is
 
     @property
     def _system_root(self) -> Path:
@@ -238,20 +311,25 @@ class TaskTypeResolver:
     def catalogue(self, owner: Owner) -> list[TaskTypeInfo]:
         """System types, plugin types (system plugins' and the owner's), the owner's own types. Each
         has an id; `ref` is its bare name unless that name would resolve to another one."""
-        def files(directory: Path) -> tuple[str, ...]:
-            return tuple(n for n in INSTRUCTION_FILES if (directory / n).is_file())
-
+        files = type_files
         own = scope_of(owner)
-        infos = [TaskTypeInfo(t, "system", files=files(self._system_root / t), settings=self._settings(t))
+        settings = lambda type_id, base, own_file: self._effective(type_id, base, own_file, owner)  # noqa: E731
+        infos = [TaskTypeInfo(t, "system", files=files(self._system_root / t),
+                              settings=settings(f"{SYSTEM_SCOPE}:{t}", self._settings(t), (self._system_root / t / "task.yaml").is_file()),
+                              description=type_description(self._system_root / t, t))
                  for t in self.system_types()]
         for type_ref, (directory, trusted) in sorted(self.plugin_types(owner).items()):
             scope, name = split_type_ref(type_ref)
+            own_file = trusted and (directory / "task.yaml").is_file()
             infos.append(TaskTypeInfo(name, "plugin", plugin=name.split(".", 1)[0], files=files(directory), scope=scope,
-                                      settings=(self._settings_at(directory) if trusted else None) or self._settings(DEFAULT)))
+                                      settings=settings(type_ref, (self._settings_at(directory) if own_file else None)
+                                                        or self._settings(DEFAULT), own_file),
+                                      description=type_description(directory)))
         user_root = self._user_root(owner)
         for t in self.user_types(owner):
-            infos.append(TaskTypeInfo(t, "user", files=files(user_root / t), settings=self._settings(DEFAULT),
-                                      editable=True, scope=own))
+            infos.append(TaskTypeInfo(t, "user", files=files(user_root / t),
+                                      settings=settings(f"{own}:{t}", self._settings(DEFAULT), False),
+                                      editable=True, scope=own, description=type_description(user_root / t)))
         names = [i.name for i in infos]
         # A bare name resolves in the owner's scope first, so their own types keep it.
         return [dataclasses.replace(i, ref=i.name if names.count(i.name) == 1 or i.scope == own else i.id)
@@ -261,26 +339,43 @@ class TaskTypeResolver:
         found = self._lookup(ref, owner) if TYPE_REF_RE.match(ref) else None
         return next((i for i in self.catalogue(owner) if i.id == found.id), None) if found else None
 
+    def extra_files(self, ref: str, owner: Owner) -> dict[str, str]:
+        """The prompts and tool wording a type defines itself: path → text."""
+        found = self._lookup(ref, owner) if TYPE_REF_RE.match(ref) else None
+        out: dict[str, str] = {}
+        for _, directory in found.dirs if found else ():
+            for path in type_files(directory):
+                if path not in INSTRUCTION_FILES and path not in out:
+                    out[path] = (directory / path).read_text(errors="replace")
+        return out
+
     # -- a user's own types -----------------------------------------------------------------------
     def write_user_type(self, owner: Owner, name: str, files: dict[str, str | None]) -> None:
-        """Create or replace a user type. A file given as None (or empty) is removed: the type then
-        inherits it from `default`."""
+        """Create a user type or change its files (paths as type_files() lists them); files not
+        given stay as they are. A file given as None (or empty) is removed: the type then inherits
+        it from `default`."""
         name = self._own_name(owner, name)
         self.check_user_type_name(name)
         root = self._user_root(owner)
         if root is None:
             raise TaskTypeError("user task types are not enabled ([context] sandbox_root)")
-        unknown = set(files) - set(INSTRUCTION_FILES)
+        unknown = sorted(f for f in files if f not in type_file_paths())
         if unknown:
-            raise TaskTypeError(f"unknown files: {', '.join(sorted(unknown))}")
-        for content in files.values():
+            raise TaskTypeError(f"unknown files: {', '.join(unknown)}")
+        for file_name, content in files.items():
             if content and len(content.encode()) > self.max_file_bytes:
-                raise TaskTypeError(f"a file exceeds {self.max_file_bytes} bytes")
+                raise TaskTypeError(f"{file_name} exceeds {self.max_file_bytes} bytes")
+            if content and file_name.startswith(TOOL_WORDING_DIR + "/"):
+                try:
+                    core_tool_rewording(Path(file_name).stem, content)
+                except ToolDefinitionError as exc:
+                    raise TaskTypeError(str(exc)) from exc
         directory = root / name
         directory.mkdir(parents=True, exist_ok=True)
         for file_name, content in files.items():
             path = directory / file_name
             if content:
+                path.parent.mkdir(exist_ok=True)
                 tmp = path.with_suffix(".tmp")
                 tmp.write_text(content)
                 tmp.replace(path)   # atomic: a running task never reads half a file
@@ -295,10 +390,7 @@ class TaskTypeResolver:
         root = self._user_root(owner)
         if root is None or not NAME_RE.match(name) or name not in self.user_types(owner):
             return False
-        directory = root / name
-        for path in directory.iterdir():
-            path.unlink()
-        directory.rmdir()
+        shutil.rmtree(root / name)
         return True
 
     # -- resolution -------------------------------------------------------------------------------
@@ -339,15 +431,35 @@ class TaskTypeResolver:
         candidates.append((f"system:{DEFAULT}", self._system_root / DEFAULT))
 
         files = {name: self._first(name, candidates) for name in INSTRUCTION_FILES}
+        own_file = self._own_file(found) is not None
+        settings = self._effective(found.id if found else DEFAULT_ID,
+                                   (found.settings if found else None) or self._settings(DEFAULT), own_file, owner)
         return ResolvedTaskType(
             requested=task_type,
             agents=files["AGENTS.md"],
             workflow=files["WORKFLOW.md"],
-            settings=(found.settings if found else None) or self._settings(DEFAULT),
+            settings=settings,
             user_defined=bool(found and found.user_defined),
             fell_back=found is None,
             resolved_id=found.id if found else "",
+            tool_texts=self._tool_texts(candidates),
         )
+
+    def _tool_texts(self, candidates: list[tuple[str, Path]]) -> tuple[tuple[str, str], ...]:
+        """The core tools the type (or `default`) rewords. A file that does not fit is skipped."""
+        texts: dict[str, str] = {}
+        for label, directory in candidates:
+            for name in core_tool_names():
+                path = directory / TOOL_WORDING_DIR / f"{name}.md"
+                if name in texts or not path.is_file():
+                    continue
+                try:
+                    if path.stat().st_size > self.max_file_bytes:
+                        raise ToolDefinitionError(f"exceeds {self.max_file_bytes} bytes")
+                    texts[name] = core_tool_rewording(name, path.read_text())
+                except (ToolDefinitionError, ValueError, yaml.YAMLError) as exc:
+                    LOG.warning("%s/%s/%s.md skipped: %s", label, TOOL_WORDING_DIR, name, exc)
+        return tuple(sorted(texts.items()))
 
     def prompt(self, name: str, task_type: str | None = None, owner: Owner | None = None) -> InstructionFile:
         """A runtime prompt (prompts/<name>.md): the task type's own prompts/ for the per-type prompts,
@@ -379,6 +491,45 @@ class TaskTypeResolver:
                     raise TaskTypeError(f"{label}/{name} exceeds {self.max_file_bytes} bytes")
                 return InstructionFile(name, data.decode(), hashlib.sha256(data).hexdigest(), f"{label}/{name}")
         raise TaskTypeError(f"no {name} found, not even in the default task type")
+
+    # -- settings: task.yaml and the changes made on the admin page ------------------------------
+    def _own_file(self, found: _Found | None) -> Path | None:
+        """The task.yaml that counts for a type, when it has its own: operators' types only."""
+        if found is None or found.settings is None:
+            return None
+        return next((d / "task.yaml" for _, d in found.dirs if (d / "task.yaml").is_file()), None)
+
+    def _effective(self, type_id: str, base: TaskTypeSettings, own_file: bool, owner: Owner | None) -> TaskTypeSettings:
+        """`base` (task.yaml) with the changes made on the admin page. A type without its own
+        task.yaml inherits default's file, and default's changes with it."""
+        if self.overrides is None:
+            return base
+        inherit = () if own_file or type_id == DEFAULT_ID else (TASK_TYPE + DEFAULT_ID,)
+        try:
+            return TaskTypeSettings.from_view(effective(self.overrides, TASK_TYPE + type_id, base.view(), owner, inherit))
+        except (KeyError, ValueError):
+            LOG.warning("task type %s: its changed settings do not fit; task.yaml as is", type_id)
+            return base
+
+    def settings_layers(self, ref: str, owner: Owner) -> dict[str, Any] | None:
+        """For the admin page: the type's settings as task.yaml (or default's, inherited) has them,
+        everyone's changes, the owner's, and those in effect for the owner; and the file itself."""
+        found = self._lookup(ref, owner) if TYPE_REF_RE.match(ref) else None
+        if found is None:
+            return None
+        own = self._own_file(found)
+        base = (found.settings if own else None) or self._settings(DEFAULT)
+        path = own or self._system_root / DEFAULT / "task.yaml"
+        section = TASK_TYPE + found.id
+        store = self.overrides
+        return {"section": section, "inherits": own is None and found.id != DEFAULT_ID,
+                "file": base.view(), "all": store.values(section) if store else {},
+                "mine": store.values(section, owner) if store else {},
+                "effective": self._effective(found.id, base, own is not None, owner).view(),
+                "task_yaml": {"content": path.read_text(errors="replace") if path.is_file() else "",
+                              "source": (f"{found.source}:{found.name}/task.yaml" if own
+                                         else f"system:{DEFAULT}/task.yaml"),
+                              "inherited": own is None and found.id != DEFAULT_ID, "exists": path.is_file()}}
 
     def _settings_at(self, directory: Path) -> TaskTypeSettings | None:
         path = directory / "task.yaml"

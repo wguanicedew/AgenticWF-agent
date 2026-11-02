@@ -200,6 +200,10 @@ class AgentContext:
     multi_turn: bool = False      # render the turn brief (a plan with more than one item)
     skill: str = ""               # the running skill's instructions (its <skill> block), if any
     extra_instructions: list[tuple[str, str]] = field(default_factory=list)   # (title, text) after WORKFLOW.md (a cron's, a check's)
+    # the tools not loaded, one line each, and how many more there are: set when a turn starts and
+    # kept for the turn, so the system prompt (and the provider's prompt cache) stays the same
+    tool_index: str = ""
+    tool_index_more: int = 0
 
     @property
     def turn(self) -> TurnContext | None:
@@ -235,6 +239,11 @@ class AgentContext:
         if self.knowledge_bases:   # catalogue only
             parts.append("# Knowledge bases (search with the kb_* tools)\n" + "\n".join(
                 f"- {kb.id}: {kb.name} - {kb.description}" for kb in self.knowledge_bases))
+        index, more = getattr(self, "tool_index", ""), getattr(self, "tool_index_more", 0)
+        if index:
+            parts.append("# More tools\nAvailable, but their arguments are not loaded yet. To use one, call "
+                         "search_tools with its name: it is offered from the next step.\n" + index
+                         + (f"\n(and {more} more: search_tools finds them by what they do)" if more else ""))
         if self.recalled_memories:
             parts.append(_untrusted("recalled_memories", "Notes from earlier tasks; they may be outdated.\n" +
                                     "\n".join(f"- {m.text}" for m in self.recalled_memories)))

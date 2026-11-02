@@ -10,14 +10,16 @@ Choosing a model by what a call needs and what it costs (docs/model-routing.md).
                         owner's own first, then the cheapest; the task's current model keeps
                         its prompt cache, every other is priced without one
 
-Settings: [llm.routing], [llm.purpose], [llm.budgets] and [llm] cost_unit (RoutingSettings).
+Settings: [llm.routing], [llm.purpose], [llm.budgets] and [llm] cost_unit (RoutingSettings). Admins
+may change the first three on the admin page: the database holds them, agent.cfg is never written
+(agenticwf.agent.runtime.overrides; ModelRouter.settings applies them).
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Iterable
 
 from agenticwf.agent.runtime.llm.base import LLMRequest
@@ -29,9 +31,9 @@ CAPABILITIES = ("tools", "vision", "reasoning", "json")
 PURPOSES = {   # purpose -> default tier
     "step": "medium", "plan": "medium", "split": "small", "reply": "small", "compact": "small",
     "compact_conversation": "small", "consolidate": "small", "final_report": "medium",
-    "cron_check": "small", "cron_report": "small",
+    "cron_check": "small", "cron_report": "small", "select_tools": "small",
 }
-TYPICAL_OUTPUT = {"step": 1000, "plan": 300, "split": 300, "final_report": 1000}   # tokens; summaries: 500
+TYPICAL_OUTPUT = {"step": 1000, "plan": 300, "split": 300, "final_report": 1000, "select_tools": 150}   # tokens; summaries: 500
 ROUTING_OPTION_KEYS = ("tier", "context_window", "max_output", "capabilities", "cost_input", "cost_output",
                        "cost_cached_input", "speed", "routable")
 
@@ -126,6 +128,9 @@ class Budget:
             raise ValueError(f"a budget is '<amount> per day' or '<amount> per month', not {text!r}")
         return cls(float(match.group(1)), match.group(2))
 
+    def text(self) -> str:
+        return f"{self.amount:g} per {self.period}"
+
     def start(self, now: dt.datetime) -> dt.datetime:
         day = now.astimezone(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         return day.replace(day=1) if self.period == "month" else day
@@ -162,6 +167,40 @@ class RoutingSettings:
             if found:
                 return found
         return self.max_tiers.get("default", TIERS[-1])
+
+    def view(self) -> dict[str, Any]:
+        """[llm.routing] by the names the admin page uses (agenticwf.agent.runtime.overrides)."""
+        return {"mode": self.mode, **{p: self.tier_for(p) for p in PURPOSES}, "context_headroom": self.headroom,
+                "max_escalations": self.max_escalations, "task_budget": self.task_budget, "feedback": self.feedback}
+
+    def purpose_view(self) -> dict[str, Any]:
+        """[llm.purpose]: the model id pinned per purpose (None: routed)."""
+        return {p: self.purpose_models.get(p) for p in PURPOSES}
+
+    def budgets_view(self) -> dict[str, Any]:
+        """[llm.budgets] as written there: '<amount> per <period>' and max_tier keys."""
+        return {**{k: b.text() for k, b in self.budgets.items()},
+                **{("max_tier" if k == "default" else f"max_tier.{k}"): t for k, t in self.max_tiers.items()}}
+
+    def changed(self, values: dict[str, Any], purposes: dict[str, Any] | None = None,
+                budgets: dict[str, Any] | None = None) -> "RoutingSettings":
+        """With what an admin changed on the admin page in [llm.routing], [llm.purpose] and [llm.budgets]
+        (checked: agenticwf.agent.runtime.overrides)."""
+        if not values and not purposes and not budgets:
+            return self
+        amounts, max_tiers = dict(self.budgets), dict(self.max_tiers)
+        for key, value in (budgets or {}).items():
+            if key == "max_tier" or key.startswith("max_tier."):
+                max_tiers[key.partition(".")[2] or "default"] = value
+            else:
+                amounts[key] = Budget.parse(value)
+        return replace(self, mode=values.get("mode", self.mode),
+                       tiers={**self.tiers, **{p: values[p] for p in PURPOSES if p in values}},
+                       purpose_models={**self.purpose_models, **(purposes or {})},
+                       headroom=values.get("context_headroom", self.headroom),
+                       max_escalations=values.get("max_escalations", self.max_escalations),
+                       task_budget=values.get("task_budget", self.task_budget),
+                       feedback=values.get("feedback", self.feedback), budgets=amounts, max_tiers=max_tiers)
 
     @classmethod
     def parse(cls, sections: dict[str, dict[str, str]]) -> "RoutingSettings":

@@ -10,6 +10,10 @@ required_scopes: [app:access]   # account approval; matches AGENT_REQUIRED_SCOPE
 rules:
   - path: /healthz
     public: true
+  # How clients sign in (`agenticwf agent` with only AGENTICWF_AGENT_URL)
+  - path: /.well-known/agenticwf
+    methods: [GET]
+    public: true
 
   # Chat page; unauthenticated browser page loads are redirected to /auth/login.
   - path: /
@@ -47,8 +51,13 @@ rules:
     methods: [GET]
     scopes: [agent:use]
 
+  # The shipped prompts and core tools' wording, to clone into a task type (Instructions tab).
+  - path: /api/v1/instructions
+    methods: [GET]
+    scopes: [agent:use]
+
   - path: /api/v1/models/**
-    methods: [POST, PATCH, DELETE]
+    methods: [POST, PUT, PATCH, DELETE]
     scopes: [agent:use]
     allow_machine: false
 
@@ -89,6 +98,18 @@ rules:
     methods: [GET]
     scopes: [agent:use]
 
+  # Settings: [harness], [llm.routing] and task types' settings changed over agent.cfg and task.yaml
+  # (docs/admin-page.md, Settings). People change their own; the API checks the admin scope for
+  # changes that apply to everyone.
+  - path: /api/v1/settings
+    methods: [PUT]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/settings
+    methods: [GET]
+    scopes: [agent:use]
+
   # Knowledge: everyone lists their knowledge services and KBs; people connect their own, switch
   # them on or off and choose their search options (docs/admin-page.md, Knowledge). Writes first.
   # Matches /api/v1/knowledge as well.
@@ -104,11 +125,22 @@ rules:
   # Skills: everyone reads what they may use; people add and manage their own (docs/skills.md).
   # Writes first: the first matching rule wins. Matches /api/v1/skills as well.
   - path: /api/v1/skills/**
-    methods: [POST, PATCH, DELETE]
+    methods: [POST, PUT, PATCH, DELETE]
     scopes: [agent:use]
     allow_machine: false
 
   - path: /api/v1/skills/**
+    methods: [GET]
+    scopes: [agent:use]
+
+  # Code repositories the agent searches: everyone lists them; people add and manage their own
+  # (docs/admin-page.md). Writes first.
+  - path: /api/v1/code/**
+    methods: [POST, PATCH, DELETE]
+    scopes: [agent:use]
+    allow_machine: false
+
+  - path: /api/v1/code/**
     methods: [GET]
     scopes: [agent:use]
 

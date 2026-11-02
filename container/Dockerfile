@@ -26,19 +26,24 @@ FROM almalinux:9
 
 ARG POSTGRES_STREAM=16
 ARG PYTHON=python3.12
+# Node.js for plugins' stdio MCP servers started with `npx` (Claude Code and Codex plugins often do):
+# an AlmaLinux 9 AppStream module stream (18, 20, 22).
+ARG NODEJS_STREAM=22
 
 LABEL org.opencontainers.image.title="agenticwf-agent" \
       org.opencontainers.image.description="AgenticWF agent API + PostgreSQL on AlmaLinux 9, behind Caddy and the AgenticWF auth service" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-# Base packages: PostgreSQL from its AppStream module stream, supervisor from EPEL.
+# Base packages: PostgreSQL and Node.js from their AppStream module streams, supervisor from EPEL.
 RUN dnf -y install epel-release \
- && dnf -y module enable "postgresql:${POSTGRES_STREAM}" \
+ && dnf -y module enable "postgresql:${POSTGRES_STREAM}" "nodejs:${NODEJS_STREAM}" \
  && dnf -y install --setopt=install_weak_deps=False \
         postgresql-server postgresql \
+        nodejs npm \
         "${PYTHON}" "${PYTHON}-pip" \
         supervisor \
         procps-ng \
+        git-core \
  && dnf clean all && rm -rf /var/cache/dnf
 
 # The agent runs as uid 1000: the host-side copy of the AuthContext secret must be
@@ -70,6 +75,8 @@ ENV DATA_ROOT=/var/lib/agenticwf-agent \
     AUTH_CONTEXT_SECRET_FILE=/run/secrets/auth_context_secret \
     AGENTICWF_AGENT_HOME=/var/lib/agenticwf-agent/local \
     AGENT_CONTAINER=1 \
+    npm_config_cache=/var/lib/agenticwf-agent/npm-cache \
+    npm_config_update_notifier=false \
     PATH=/opt/agent/venv/bin:$PATH \
     PYTHONUNBUFFERED=1
 

@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from agenticwf.auth.client import AuthContextMiddleware, current_auth_context
 from agenticwf.auth.context import AuthContext
@@ -46,7 +46,7 @@ from agenticwf.agent.api import crons as cron_routes
 from agenticwf.agent.api.agent import AgentService, Conflict
 from agenticwf.agent.api.auth import is_approved, owner_key, require, require_auth
 from agenticwf.agent.api.events import Updates
-from agenticwf.agent.api.settings import Settings
+from agenticwf.agent.api.settings import WELL_KNOWN, Settings
 from agenticwf.agent.api.store import Store
 
 LOG = get_logger(__name__)
@@ -55,6 +55,24 @@ LOG = get_logger(__name__)
 # (see deploy/policy.agent.yaml).
 SCOPE_AGENT = "agent:use"
 SCOPE_ADMIN = "admin"
+
+
+def _normalize_visibility_alias(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    raw = value.strip().lower()
+    if not raw:
+        return value
+    base = raw.split("(", 1)[0].strip()
+    aliases = {
+        "private": "user",
+        "groups": "organization",
+        "group": "organization",
+        "org": "organization",
+        "everyone": "all",
+        "public": "all",
+    }
+    return aliases.get(base, base)
 
 
 class NewSession(BaseModel):
@@ -76,6 +94,12 @@ class TaskTypeFiles(BaseModel):
 
     agents_md: str | None = Field(default=None, max_length=32 * 1024)
     workflow_md: str | None = Field(default=None, max_length=32 * 1024)
+    # prompts/<name>.md and core-tools/<tool>.md: only those given change (None: removed)
+    files: dict[str, str | None] = Field(default_factory=dict, max_length=64)
+
+
+class TaskTypeFile(BaseModel):
+    content: str = Field(max_length=32 * 1024)
 
 
 class SkillIn(BaseModel):
@@ -191,6 +215,37 @@ class KnowledgeServiceIn(BaseModel):
     enabled: bool = True
 
 
+class CodeRepoIn(BaseModel):
+    """A source repository a user adds for search_code and read_file (docs/admin-page.md, Code)."""
+
+    name: str = Field(min_length=1, max_length=64)    # the model reads <name>/<path>; unique on the agent
+    url: str = Field(min_length=1, max_length=2048)   # https, from [code] allowed_hosts
+    branch: str = Field(default="", max_length=200)   # empty: the repository's default branch
+    label: str = Field(default="", max_length=200)
+    visibility: Literal["user", "organization", "all"] = "user"   # all: managers only
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_visibility(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("visibility") is not None:
+            data = dict(data)
+            data["visibility"] = _normalize_visibility_alias(data["visibility"])
+        return data
+
+
+class CodeRepoPatch(BaseModel):
+    label: str | None = Field(default=None, max_length=200)
+    visibility: Literal["user", "organization", "all"] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_visibility(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("visibility") is not None:
+            data = dict(data)
+            data["visibility"] = _normalize_visibility_alias(data["visibility"])
+        return data
+
+
 class KnowledgeServicePatch(BaseModel):
     url: str | None = Field(default=None, min_length=1, max_length=2048)
     base_path: str | None = Field(default=None, min_length=1, max_length=255)
@@ -200,13 +255,53 @@ class KnowledgeServicePatch(BaseModel):
     enabled: bool | None = None
 
 
-class ToolPref(BaseModel):
-    """Switch one tool (`id`: its name), or every tool of a plugin or an MCP endpoint (`id`: theirs),
-    on or off for the caller's tasks."""
+class SettingChange(BaseModel):
+    """One setting (docs/admin-page.md, Settings): `section` is harness, llm.routing, llm.purpose,
+    llm.budgets or task_type:<type>; `value` null goes back to the layer below; `scope` all (admins:
+    everyone's tasks) or mine (your own tasks: plan, split, a lower max_steps)."""
+
+    section: str = Field(min_length=1, max_length=400)
+    key: str = Field(min_length=1, max_length=255)
+    value: Any = None
+    scope: Literal["all", "mine"] = "mine"
+
+
+class ToolTimeout(BaseModel):
+    """A tool's timeout in seconds for everyone (admins); null: back to the tool's own."""
+
+    name: str = Field(min_length=1, max_length=400)
+    timeout: float | None = Field(default=None, ge=1, le=3600)
+
+
+class _ToolMode(BaseModel):
+    """`mode`: on, ask (each call waits for the caller's approval) or off; or `enabled` (on or off)."""
+
+    mode: Literal["on", "ask", "off"] | None = None
+    enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def _one_of(self):
+        if self.mode is None and self.enabled is None:
+            raise ValueError("give mode (on, ask, off) or enabled")
+        return self
+
+    @property
+    def resolved(self) -> str:
+        return self.mode or ("on" if self.enabled else "off")
+
+
+class ToolPref(_ToolMode):
+    """Set one tool (`id`: its name), or every tool of a plugin or an MCP endpoint (`id`: theirs),
+    to on, ask or off for the caller's tasks."""
 
     target: Literal["tool", "plugin", "mcp"]
     id: str = Field(min_length=1, max_length=390)
-    enabled: bool
+
+
+class ToolPrefs(_ToolMode):
+    """Set several tools or skills (their names) to on, ask or off for the caller's tasks."""
+
+    names: list[str] = Field(min_length=1, max_length=500)
 
 
 class KnowledgePref(BaseModel):
@@ -294,10 +389,21 @@ def database_engine(config: RuntimeConfig, engine: EngineOptions | None = None) 
         engine = dataclasses.replace(engine, mcp_store=DatabaseMcpStore(SecretBox.from_environment()))
     if engine.skill_store is None:   # skills users add
         engine = dataclasses.replace(engine, skill_store=DatabaseSkillStore())
+    if engine.setting_overrides is None:   # settings changed on the admin page (docs/admin-page.md, Settings)
+        from agenticwf.agent.runtime.db_overrides import DatabaseSettingOverrides
+
+        engine = dataclasses.replace(engine, setting_overrides=DatabaseSettingOverrides())
     if engine.tool_prefs is None:    # tools people switch off for their tasks (docs/admin-page.md, Tools)
         from agenticwf.agent.runtime.tools.db_prefs import DatabaseToolPrefs
 
         engine = dataclasses.replace(engine, tool_prefs=DatabaseToolPrefs())
+    if engine.code is None:          # source repositories: agent.cfg's and those users add
+        from agenticwf.agent.runtime.code import CodeSearch, CodeSettings
+        from agenticwf.agent.runtime.code.db_store import DatabaseRepoStore
+
+        code = CodeSettings.from_core_config()
+        if code.enabled:
+            engine = dataclasses.replace(engine, code=CodeSearch(code, store=DatabaseRepoStore()))
     if engine.usage_store is None:   # model usage and feedback (docs/model-routing.md)
         engine = dataclasses.replace(engine, usage_store=DatabaseUsage())
     if engine.knowledge is None:     # the knowledge service ([knowledge] url) and those users connect
@@ -376,6 +482,13 @@ def create_app(settings: Settings | None = None, runtime_config: RuntimeConfig |
             LOG.warning("health check: the database does not answer", exc_info=True)
             return JSONResponse({"status": "unavailable", "database": "down"}, status_code=503)
         return JSONResponse({"status": "ok"})
+
+    @app.get(WELL_KNOWN)
+    def well_known() -> dict:
+        """Public: how a client signs in, so `agenticwf agent` needs only AGENTICWF_AGENT_URL
+        (agenticwf_auth_cli.service_access). Behind Caddy it is Logto, whose settings authsvc
+        serves at <this URL>/auth/config; the personal agent answers this itself (local.py)."""
+        return {"service": "agent", "mode": "authsvc", "auth": "logto", "base_path": ""}
 
     @app.get("/", response_class=HTMLResponse)
     def index(ctx: AuthContext = Depends(require())) -> str:
@@ -516,19 +629,66 @@ def create_app(settings: Settings | None = None, runtime_config: RuntimeConfig |
             raise HTTPException(status_code=404, detail="task type not found")
         return found
 
+    @app.get("/api/v1/settings")
+    def list_settings(ctx: AuthContext = Depends(tasks_dep)) -> dict:
+        """[harness] and [llm.routing]: agent.cfg's values, the changes for everyone and yours, and
+        those in effect for your tasks. Task types' settings are on GET /api/v1/task-types/{name}."""
+        return agent.settings(ctx)
+
+    @app.put("/api/v1/settings")
+    def set_setting(body: SettingChange, ctx: AuthContext = Depends(people)) -> dict:
+        """Change a setting for everyone (admins) or for your own tasks; agent.cfg and task.yaml stay as
+        they are. A change applies to tasks created after it."""
+        try:
+            changed = agent.set_setting(ctx, body.section, body.key, body.value, body.scope == "all")
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=f"no setting {exc.args[0]!r}")
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=422, detail=f"{body.key}: {exc}")
+        LOG.info("setting %s %s = %r (%s) by %s", changed["section"], body.key, body.value, body.scope, ctx.subject)
+        return changed
+
     @app.put("/api/v1/task-types/{name}")
     def put_task_type(name: str, body: TaskTypeFiles, ctx: AuthContext = Depends(people)) -> dict:
         """Create or replace one of the caller's own task types. A file left empty is inherited
         from `default`. System and plugin types cannot be changed here."""
-        resolver = agent.task_type_resolver
+        files = {**body.files, "AGENTS.md": body.agents_md, "WORKFLOW.md": body.workflow_md}
+        _write_type(name, files, ctx)
+        LOG.info("task type %s saved by %s", name, ctx.subject)
+        return agent.task_type(name, ctx)
+
+    def _write_type(name: str, files: dict[str, str | None], ctx: AuthContext) -> None:
         try:
-            resolver.write_user_type(owner_key(ctx), name, {"AGENTS.md": body.agents_md, "WORKFLOW.md": body.workflow_md})
+            agent.task_type_resolver.write_user_type(owner_key(ctx), name, files)
         except TaskTypeError as exc:
             message = str(exc)
             status = 403 if "your own" in message else 409 if "reserved" in message or "not enabled" in message else 422
-            raise HTTPException(status_code=status, detail=str(exc))
-        LOG.info("task type %s saved by %s", name, ctx.subject)
+            raise HTTPException(status_code=status, detail=message)
+
+    @app.put("/api/v1/task-types/{name}/files/{path:path}")
+    def put_task_type_file(name: str, path: str, body: TaskTypeFile, ctx: AuthContext = Depends(people)) -> dict:
+        """One file of the caller's own type, created with it if it is new: AGENTS.md, WORKFLOW.md,
+        prompts/<name>.md or core-tools/<tool>.md (a clone from the Instructions tab)."""
+        _write_type(name, {path: body.content}, ctx)
+        LOG.info("task type %s: %s saved by %s", name, path, ctx.subject)
         return agent.task_type(name, ctx)
+
+    @app.delete("/api/v1/task-types/{name}/files/{path:path}")
+    def delete_task_type_file(name: str, path: str, ctx: AuthContext = Depends(people)) -> dict:
+        """Remove one file of the caller's own type: it is inherited again."""
+        info = agent.task_type_resolver.info(name, owner_key(ctx))
+        if info is None or not info.editable:
+            raise HTTPException(status_code=404, detail="no such task type of yours")
+        _write_type(name, {path: None}, ctx)
+        LOG.info("task type %s: %s removed by %s", name, path, ctx.subject)
+        return agent.task_type(name, ctx)
+
+    @app.get("/api/v1/instructions")
+    def list_instructions(ctx: AuthContext = Depends(tasks_dep)) -> dict:
+        """The runtime prompts and core tools' wording the system ships, to clone into a task type."""
+        return agent.instructions(ctx)
 
     @app.delete("/api/v1/task-types/{name}", status_code=204)
     def delete_task_type(name: str, ctx: AuthContext = Depends(people)) -> Response:
@@ -656,20 +816,149 @@ def create_app(settings: Settings | None = None, runtime_config: RuntimeConfig |
     @app.get("/api/v1/tools")
     def list_tools(ctx: AuthContext = Depends(tasks_dep)) -> dict:
         """Every tool you may use (but skills), where it comes from, and the plugins and MCP endpoints
-        that provide them; `enabled` is your own switch, `active` whether your tasks get it."""
+        that provide them; `mode` is your own switch (on, ask, off), `active` whether your tasks get
+        it and `asks` whether each call waits for your approval."""
         return agent.tools(ctx)
 
     @app.put("/api/v1/tools/prefs")
     def set_tool_pref(body: ToolPref, ctx: AuthContext = Depends(people)) -> dict:
-        """Switch a tool, a plugin's tools or an MCP endpoint's tools on or off for your tasks."""
+        """Set a tool, a plugin's tools or an MCP endpoint's tools to on, ask or off for your tasks."""
         try:
-            changed = agent.set_tool_pref(ctx, body.target, body.id, body.enabled)
+            changed = agent.set_tool_pref(ctx, body.target, body.id, body.resolved)
         except KeyError:
             raise HTTPException(status_code=404, detail=f"no {body.target} {body.id!r} among your tools")
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
-        LOG.info("tools %s:%s %s by %s", body.target, body.id, "on" if body.enabled else "off", ctx.subject)
+        LOG.info("tools %s:%s %s by %s", body.target, body.id, changed["mode"], ctx.subject)
         return changed
+
+    @app.put("/api/v1/tools/prefs/many")
+    def set_tool_prefs(body: ToolPrefs, ctx: AuthContext = Depends(people)) -> dict:
+        """Set every tool of a group (the admin page's Core tools, System, … or a group of skills) to on,
+        ask or off for your tasks; nothing changes when one of them is unknown or always on."""
+        try:
+            changed = agent.set_tool_prefs(ctx, body.names, body.resolved)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=f"no tool {exc.args[0]!r} among your tools")
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        LOG.info("tools %s %s by %s", ",".join(changed["names"]), changed["mode"], ctx.subject)
+        return changed
+
+    @app.put("/api/v1/tools/timeout")
+    def set_tool_timeout(body: ToolTimeout, ctx: AuthContext = Depends(people)) -> dict:
+        """Change how long one tool may run, for everyone's tasks (admins)."""
+        if SCOPE_ADMIN not in ctx.scopes:
+            raise HTTPException(status_code=403, detail="only managers (admin scope) change a tool's timeout")
+        try:
+            changed = agent.set_tool_timeout(ctx, body.name, body.timeout)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"no tool {body.name!r} among your tools")
+        LOG.info("tool %s timeout %s by %s", body.name, body.timeout or "reset", ctx.subject)
+        return changed
+
+    # --- Code: the repositories search_code and read_file read (docs/admin-page.md, Code) -------
+    def _code():
+        if engine.code is None or not engine.code.settings.enabled:
+            raise HTTPException(status_code=409, detail="this agent has no code repositories ([code] root)")
+        return engine.code
+
+    def _code_scopes(ctx: AuthContext) -> None:
+        missing = _code().settings.scopes - ctx.scopes
+        if missing:
+            raise HTTPException(status_code=403, detail=f"missing scopes: {' '.join(sorted(missing))}")
+
+    def _system_repo_view(name: str, url: str, branch: str, checkout: bool) -> dict:
+        error = _code().errors.get(name, "")
+        return {"name": name, "url": url, "branch": branch, "label": "", "group": "system", "visibility": "all",
+                "editable": False, "owner": None, "status": "error" if error else "ok" if checkout else "pending",
+                "error": error, "synced_at": None}
+
+    def _repo_view(repo, owner, *, checkout: bool) -> dict:
+        mine = tuple(repo.owner) == tuple(owner)
+        return {"name": repo.name, "url": repo.url, "branch": repo.branch, "label": repo.label,
+                "group": "mine" if mine else "shared", "visibility": repo.visibility, "editable": mine,
+                "owner": repo.owner[0], "status": "error" if repo.error else "ok" if checkout else "pending",
+                "error": repo.error,
+                "synced_at": (dt.datetime.fromtimestamp(repo.synced_at, dt.timezone.utc).isoformat()
+                              if repo.synced_at else None)}
+
+    def _own_repo(name: str, ctx: AuthContext):
+        repo = next((r for r in _code().user_repos() if r.name == name), None)
+        if repo is None or not repo.visible_to(owner_key(ctx)):
+            raise HTTPException(status_code=404, detail="repository not found")
+        if tuple(repo.owner) != owner_key(ctx):
+            raise HTTPException(status_code=403, detail="repository belongs to someone else")
+        return repo
+
+    @app.get("/api/v1/code/repos")
+    def list_code_repos(ctx: AuthContext = Depends(tasks_dep)) -> dict:
+        """The repositories you can search: agent.cfg's (system), those shared with you, and yours."""
+        if engine.code is None or not engine.code.settings.enabled:
+            return {"enabled": False, "can_add": False, "repos": [], "allowed_hosts": []}
+        code, owner = engine.code, owner_key(ctx)
+        on_disk = set(code.system_repos())
+        configured = {r.name for r in code.settings.repos}
+        repos = [_system_repo_view(r.name, r.url, r.branch, r.name in on_disk) for r in code.settings.repos]
+        repos += [_system_repo_view(n, "", "", True) for n in sorted(on_disk - configured)]   # put there by hand
+        repos += [_repo_view(r, owner, checkout=code.user_path(r.name).is_dir())
+                  for r in code.user_repos() if r.name not in configured and r.visible_to(owner)]
+        return {"enabled": True, "can_add": code.store is not None and code.settings.scopes <= ctx.scopes,
+                "repos": repos, "allowed_hosts": list(code.settings.allowed_hosts),
+                "scopes": sorted(code.settings.scopes)}
+
+    @app.post("/api/v1/code/repos", status_code=201)
+    def add_code_repo(body: CodeRepoIn, ctx: AuthContext = Depends(people)) -> dict:
+        """Add a repository: it is cloned in the background, and then your tasks can read it."""
+        from agenticwf.agent.runtime.code import UserRepo
+
+        code = _code()
+        _code_scopes(ctx)
+        if code.store is None:
+            raise HTTPException(status_code=409, detail="this runtime has no store for repositories")
+        repo = UserRepo(name=body.name.strip(), url=body.url.strip(), branch=body.branch.strip(), owner=owner_key(ctx),
+                        label=body.label.strip(), visibility=_visibility(body.visibility, ctx))
+        problem = code.check_user_repo(repo)
+        if problem:
+            raise HTTPException(status_code=422, detail=problem)
+        if repo.name in code.names_taken():
+            raise HTTPException(status_code=409, detail=f"a repository named {repo.name!r} exists; choose another name")
+        code.remove_checkout(repo.name)   # a leftover of a removed one
+        code.store.save_repo(repo)
+        code.sync_in_background(only=repo.name)
+        LOG.info("code repository %s added (%s, %s) by %s", repo.name, repo.url, repo.visibility, ctx.subject)
+        return _repo_view(repo, owner_key(ctx), checkout=False)
+
+    @app.patch("/api/v1/code/repos/{name}")
+    def change_code_repo(name: str, body: CodeRepoPatch, ctx: AuthContext = Depends(people)) -> dict:
+        """Change a repository's label or who may read it. To change its URL, remove it and add it again."""
+        current = _own_repo(name, ctx)
+        changes = _patch(body, nullable=set(), exclude=set())
+        if "visibility" in changes:
+            changes["visibility"] = _visibility(changes["visibility"], ctx)
+        repo = dataclasses.replace(current, **changes)
+        try:
+            _code().store.save_repo(repo)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc))
+        LOG.info("code repository %s changed by %s (%s)", name, ctx.subject, ", ".join(sorted(changes)))
+        return _repo_view(repo, owner_key(ctx), checkout=_code().user_path(name).is_dir())
+
+    @app.post("/api/v1/code/repos/{name}/refresh", status_code=202)
+    def refresh_code_repo(name: str, ctx: AuthContext = Depends(people)) -> dict:
+        """Clone or update a repository of yours now (in the background)."""
+        _own_repo(name, ctx)
+        _code().sync_in_background(only=name)
+        return {"name": name, "refreshing": True}
+
+    @app.delete("/api/v1/code/repos/{name}", status_code=204)
+    def remove_code_repo(name: str, ctx: AuthContext = Depends(people)) -> Response:
+        _own_repo(name, ctx)
+        code = _code()
+        code.store.delete_repo(name)
+        code.remove_checkout(name)
+        LOG.info("code repository %s removed by %s", name, ctx.subject)
+        return Response(status_code=204)
 
     # --- Knowledge: the system service, services people connect, what they switch off ----------
     def _knowledge():
@@ -835,7 +1124,10 @@ def create_app(settings: Settings | None = None, runtime_config: RuntimeConfig |
     def list_skills(ctx: AuthContext = Depends(tasks_dep)) -> dict:
         """System and plugin skills, those shared with the caller, and the caller's own."""
         catalog, owner = _skills(), owner_key(ctx)
-        return {"skills": [k.to_dict(owner) for k in catalog.skills(owner)], "can_add": catalog.store is not None}
+        modes = agent.harness.services.tool_dispatcher.prefs.modes_for(owner)
+        return {"skills": [{**k.to_dict(owner), "mode": (mode := modes.get(f"tool:{k.tool_name}", "on")), "on": mode != "off"}
+                           for k in catalog.skills(owner)],
+                "can_add": catalog.store is not None}
 
     @app.get("/api/v1/skills/{ref}")
     def get_skill(ref: str, ctx: AuthContext = Depends(tasks_dep)) -> dict:

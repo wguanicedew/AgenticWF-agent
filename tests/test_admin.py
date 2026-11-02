@@ -1,4 +1,5 @@
-"""The admin page and its API: task types in groups (system, plugin, user), models by owner and visibility."""
+"""The admin page and its API: task types in groups (system, plugin, user), the instructions users
+clone into their types, models by owner and visibility."""
 
 import asyncio
 
@@ -9,9 +10,11 @@ from agenticwf.agent.api.app import create_app
 from agenticwf.agent.api.settings import Settings
 from agenticwf.agent.runtime.bootstrap import EngineOptions, RuntimeConfig
 from agenticwf.agent.runtime.context.task_types import TaskTypeError, TaskTypeResolver
-from agenticwf.agent.runtime.llm.base import LLMRequest, Message
+from agenticwf.agent.runtime.llm.base import LLMRequest, LLMResponse, Message
 from agenticwf.agent.runtime.llm.catalog import ModelCatalog, ModelEntry
 from agenticwf.agent.runtime.secrets import SecretBox
+from agenticwf.agent.runtime.tools.loader import CORE_TOOLS_DIR, core_tool_text, reword
+from agenticwf.agent.runtime.types import owner_key
 
 from tests.conftest import SECRET, Client, user
 from tests.test_models import Fixed, MemoryModels
@@ -115,7 +118,7 @@ def test_task_types_api(admin_app):
 
 def test_admin_page(admin_app):
     page = Client(admin_app, user()).get("/admin")
-    assert page.status_code == 200 and "Task types" in page.text and "<script src" not in page.text
+    assert page.status_code == 200 and "Task types" in page.text and "Instructions" in page.text and "<script src" not in page.text
     assert admin_app.get("/admin").status_code == 401
 
 
@@ -220,3 +223,83 @@ def test_plugin_task_types_are_scoped(tmp_path):
     system_task = harness.create_task(runtime_user(), "x", task_type="system:lint.check")
     assert PolicyEngine().decide(read, {}, theirs).kind is DecisionKind.DENY
     assert PolicyEngine().decide(read, {}, system_task).kind is DecisionKind.ALLOW
+
+
+# --- instructions: prompts and tool wording cloned into a user's task type -------------------------
+def _tool_file(name, description):
+    packaged = (CORE_TOOLS_DIR / f"{name}.md").read_text()
+    return packaged[:packaged.index("\n---", 4) + 4] + "\n" + description
+
+
+def test_user_types_carry_prompts_and_tool_wording(tmp_path):
+    resolver = TaskTypeResolver(make_system_dir(tmp_path), user_sandbox=lambda o: tmp_path / "sb" / o[0])
+    resolver.write_user_type(ALICE, "mine", {"prompts/plan.md": "# alice plans\n",
+                                             "core-tools/update_plan.md": _tool_file("update_plan", "Alice's plan tool.\n")})
+    assert resolver.prompt("plan", "mine", ALICE).source == "user:mine/prompts/plan.md"
+    assert resolver.prompt("plan", "mine", BOB).source == "packaged:prompts/plan.md"     # not bob's
+    resolved = resolver.resolve("mine", ALICE)
+    assert resolved.tool_wording == {"update_plan": "Alice's plan tool."}
+    assert resolver.extra_files("mine", ALICE).keys() == {"prompts/plan.md", "core-tools/update_plan.md"}
+    assert resolver.info("mine", ALICE).files == ("prompts/plan.md", "core-tools/update_plan.md")
+    for bad in ({"prompts/split.md": "x"},                                      # not a per-type prompt
+                {"core-tools/nope.md": "x"}, {"../AGENTS.md": "x"},
+                {"core-tools/update_plan.md": "Alice's plan tool.\n"},          # no front matter
+                {"core-tools/update_plan.md": _tool_file("update_plan", "x").replace("type: object", "type: array", 1)}):
+        with pytest.raises(TaskTypeError):
+            resolver.write_user_type(ALICE, "mine", bad)
+    resolver.write_user_type(ALICE, "mine", {"prompts/plan.md": None})         # inherited again
+    assert resolver.prompt("plan", "mine", ALICE).source == "packaged:prompts/plan.md"
+    assert resolver.delete_user_type(ALICE, "mine")                             # with its subdirectories
+
+
+def test_reword_keeps_what_the_runtime_appends():
+    packaged = core_tool_text("search_code")[1].rstrip()
+    schemas = [{"name": "search_code", "description": packaged + "\n\nRepositories: panda", "input_schema": {}},
+               {"name": "other", "description": "same", "input_schema": {}}]
+    out = reword(schemas, {"search_code": "Search the code."})
+    assert out[0]["description"] == "Search the code.\n\nRepositories: panda" and out[1] == schemas[1]
+    assert reword(schemas, {}) is schemas
+
+
+def test_task_uses_its_types_tool_wording(tmp_path):
+    from tests.test_runtime import build, run
+
+    system = make_system_dir(tmp_path)
+    harness, _, _ = build(system, [LLMResponse("done")], sandbox=lambda o: tmp_path / "sb")
+    owner = owner_key(user())
+    harness.services.task_types.write_user_type(owner, "mine", {"core-tools/ask_user.md": _tool_file("ask_user", "Ask Alice.\n")})
+    run(harness, harness.create_task(user(), "hi", task_type="mine"))
+    run(harness, harness.create_task(user(), "hi"))
+    first, second = ({t["name"]: t["description"] for t in r.tools} for r in harness.services.llm.requests)
+    assert first["ask_user"] == "Ask Alice." and second["ask_user"] == core_tool_text("ask_user")[1]
+
+
+def test_instructions_api(admin_app):
+    alice, bob = Client(admin_app, user()), Client(admin_app, user(subject="user_bob"))
+    listed = alice.get("/api/v1/instructions").json()
+    prompts = {p["name"]: p for p in listed["prompts"]}
+    assert listed["can_add"] and prompts["plan"]["per_type"] and not prompts["split"]["per_type"]
+    assert prompts["plan"]["source"] == "packaged:prompts/plan.md" and prompts["plan"]["content"]
+    tools = {t["name"]: t for t in listed["core_tools"]}
+    assert "skill" not in tools and tools["read_file"]["path"] == "core-tools/read_file.md"
+
+    # clone a prompt into a new type, then a tool's wording into the same type
+    put = alice.put("/api/v1/task-types/mine/files/prompts/plan.md", json={"content": "# my plan\n"})
+    assert put.status_code == 200 and put.json()["files"] == ["prompts/plan.md"]
+    wording = _tool_file("read_file", "Read it.\n")
+    assert alice.put("/api/v1/task-types/mine/files/core-tools/read_file.md", json={"content": wording}).status_code == 200
+    got = alice.get("/api/v1/task-types/mine").json()
+    assert got["content"]["prompts/plan.md"]["content"] == "# my plan\n" and got["content"]["AGENTS.md"]["inherited"]
+    assert alice.put("/api/v1/task-types/mine/files/core-tools/read_file.md",
+                     json={"content": "no front matter"}).status_code == 422
+    assert alice.put("/api/v1/task-types/mine/files/prompts/split.md", json={"content": "x"}).status_code == 422
+    assert alice.put("/api/v1/task-types/system:review/files/prompts/plan.md", json={"content": "x"}).status_code == 403
+    assert bob.delete("/api/v1/task-types/mine/files/prompts/plan.md").status_code == 404
+    assert alice.delete("/api/v1/task-types/system:review/files/AGENTS.md").status_code == 404
+
+    # clone a whole type with its extra files
+    clone = alice.put("/api/v1/task-types/copy", json={"agents_md": "# copied\n", "files": {"prompts/plan.md": "# my plan\n"}})
+    assert clone.status_code == 200 and clone.json()["files"] == ["AGENTS.md", "prompts/plan.md"]
+    gone = alice.delete("/api/v1/task-types/mine/files/prompts/plan.md")
+    assert gone.status_code == 200 and gone.json()["files"] == ["core-tools/read_file.md"]
+    assert alice.delete("/api/v1/task-types/mine").status_code == 204

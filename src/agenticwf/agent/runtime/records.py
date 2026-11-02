@@ -59,6 +59,9 @@ class Intent:
     task_ids: list[str] = field(default_factory=list)
     supersedes: list[str] = field(default_factory=list)
     usage: Usage = field(default_factory=Usage)   # intake and the final combine; tasks count their own
+    # how intake chose its tasks and their types, for the trace view: planned | skill | split | single
+    # (split off) | single: <why the split was not used>. A default, so intents saved before it load.
+    intake: str = ""
 
     @property
     def open(self) -> bool:

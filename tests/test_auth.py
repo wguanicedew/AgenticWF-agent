@@ -8,6 +8,8 @@ from tests.conftest import SECRET, machine, signed, user
 
 def test_health_is_public(client):
     assert client.get("/healthz").json() == {"status": "ok"}
+    assert client.get("/.well-known/agenticwf").json() == {"service": "agent", "mode": "authsvc", "auth": "logto",
+                                                           "base_path": ""}
 
 
 def test_no_context_is_401(client):

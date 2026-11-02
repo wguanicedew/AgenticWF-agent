@@ -52,9 +52,11 @@ from agenticwf.agent.runtime.cron.catalog import CronCatalog
 from agenticwf.agent.runtime.cron.service import CronService, CronSettings
 from agenticwf.agent.runtime.policy.engine import DecisionKind, PolicyConfig, PolicyEngine, PolicyRule
 from agenticwf.agent.runtime.skills.catalog import SkillCatalog, SkillStore
+from agenticwf.agent.runtime.skills.skill import parse_aliases
 from agenticwf.agent.runtime.telemetry import Tracing
 from agenticwf.agent.runtime.thread.manager import RuntimeThreadManager
 from agenticwf.agent.runtime.tools.dispatcher import Hooks, ToolDispatcher
+from agenticwf.agent.runtime.overrides import InMemorySettingOverrides, SettingOverrides
 from agenticwf.agent.runtime.tools.prefs import ToolPrefs
 from agenticwf.agent.runtime.tools.registry import DatabaseToolSource, ToolRegistry
 from agenticwf.agent.runtime.tools.spec import Handler
@@ -82,6 +84,10 @@ class RuntimeConfig:
     top_k: int = 15
     top_k_skills: int = 5              # skills offered at the start, besides the top_k tools
     schema_budget_tokens: int = 8000
+    small_catalogue: int = 30          # this many eligible tools or fewer: all offered, no selection
+    index_tokens: int = 1500           # the tools left out, by name, in the system prompt; 0: none
+    select_model_above: int = 0        # a small model picks the tools above this many; 0: search alone
+    skill_tool_aliases: dict[str, tuple[str, ...]] | None = None   # [skills] tool_aliases; None: the defaults
     max_threads_per_owner: int | None = None
     intake: IntakeSettings = field(default_factory=IntakeSettings)
     memory: MemorySettings = field(default_factory=MemorySettings)
@@ -96,8 +102,11 @@ class RuntimeConfig:
         """
         Sections (docs/agent-structure.md §9):
             [context]  system_dir, sandbox_root
-            [tools]    plugin_dirs (comma or space separated), top_k, top_k_skills, schema_budget_tokens
+            [tools]    plugin_dirs (comma or space separated), top_k, top_k_skills, schema_budget_tokens,
+                       small_catalogue, index_tokens, select_model_above
             [plugins]  disabled (comma or space separated), user_ttl (docs/plugins.md)
+            [skills]   tool_aliases: `Name: tool …, …`, the tools here for other hosts' tool names in
+                       skills (docs/skills.md#claude-code-and-codex)
             [mcp]      allowed_hosts (comma or space separated), connect_timeout, discovery_ttl,
                        discover (docs/mcp.md)
             [policy]   file
@@ -180,6 +189,10 @@ class RuntimeConfig:
             top_k=int(opt("tools", "top_k", "15")),
             top_k_skills=int(opt("tools", "top_k_skills", "5")),
             schema_budget_tokens=int(opt("tools", "schema_budget_tokens", "8000")),
+            small_catalogue=int(opt("tools", "small_catalogue", "30")),
+            index_tokens=int(opt("tools", "index_tokens", "1500")),
+            select_model_above=int(opt("tools", "select_model_above", "0")),
+            skill_tool_aliases=parse_aliases(opt("skills", "tool_aliases") or ""),
             max_threads_per_owner=int(threads) if threads and int(threads) > 0 else None,
             intake=intake,
             memory=memory,
@@ -210,7 +223,9 @@ class EngineOptions:
     memory: MemoryStore | None = None               # long-term memory (the API's database); None: none, no memory_search
     knowledge: KnowledgeCatalog | None = None
     web: Any = None                                 # agenticwf.agent.runtime.web.WebSearch; None: from [web_search]
+    code: Any = None                                # agenticwf.agent.runtime.code.CodeSearch; None: from [code]
     tool_prefs: ToolPrefs | None = None             # tools users switch off (the API's database); None: in memory
+    setting_overrides: SettingOverrides | None = None   # settings changed on the admin page (the API's database); None: in memory
     on_complete: list[CompletionHook] = field(default_factory=list)
     tool_hooks: Hooks | None = None
 
@@ -280,7 +295,8 @@ def build_catalog(config: RuntimeConfig, store: ModelStore | None = None) -> Mod
                         allowed_hosts=config.llm_allowed_hosts)
 
 
-def build_llm(config: RuntimeConfig, store: ModelStore | None = None, usage: UsageStore | None = None) -> LLM:
+def build_llm(config: RuntimeConfig, store: ModelStore | None = None, usage: UsageStore | None = None,
+              overrides: SettingOverrides | None = None) -> LLM:
     """The model router over the configured models and, with `store`, the database's; routing by
     [llm.routing], [llm.purpose], [llm.budgets] (docs/model-routing.md); usage recorded in `usage`."""
     catalog = build_catalog(config, store)
@@ -289,20 +305,21 @@ def build_llm(config: RuntimeConfig, store: ModelStore | None = None, usage: Usa
                          "set [llm] provider = echo, or pass EngineOptions(llm=...)")
     if any(e.provider == "echo" for e in catalog.entries()):
         LOG.warning("an `echo` model is configured: its replies repeat the request (development only)")
-    return ModelRouter(catalog, settings=RoutingSettings.parse(config.llm_sections), usage=usage)
+    return ModelRouter(catalog, settings=RoutingSettings.parse(config.llm_sections), usage=usage, overrides=overrides)
 
 
 def build_thread_manager(config: RuntimeConfig | None = None, options: EngineOptions | None = None) -> RuntimeThreadManager:
     """Build a RuntimeThreadManager whose threads run tasks through the AgentHarness."""
     config = config or RuntimeConfig.from_core_config()
     options = options or EngineOptions()
+    overrides = options.setting_overrides or InMemorySettingOverrides()
 
     # Shared, process-lifetime pieces.
     mcp = McpManager(config.mcp)
     plugins = build_plugin_manager(config, mcp)
     mcp_catalog = McpCatalog(options.mcp_store, mcp) if options.mcp_store else None
     skills = SkillCatalog(config.system_dir, user_sandbox=sandbox_resolver(config.sandbox_root), plugins=plugins,
-                          store=options.skill_store)
+                          store=options.skill_store, tool_aliases=config.skill_tool_aliases)
     embeddings = build_embeddings(config, options)   # one index: tools, skills and memories
     if embeddings is not None and hasattr(options.memory, "use_embeddings"):
         options.memory.use_embeddings(embeddings)
@@ -314,10 +331,10 @@ def build_thread_manager(config: RuntimeConfig | None = None, options: EngineOpt
               for glob in config.cron.deny_tools), *policy_config.rules))
     policy = PolicyEngine(policy_config)
     task_types = TaskTypeResolver(config.system_dir, user_sandbox=sandbox_resolver(config.sandbox_root),
-                                  plugins=plugins)
+                                  plugins=plugins, overrides=overrides)
     task_types.check()   # refuse to start without the default AGENTS.md / WORKFLOW.md
     store = options.task_store or InMemoryStore()
-    llm = options.llm or build_llm(config, options.model_store, options.usage_store)
+    llm = options.llm or build_llm(config, options.model_store, options.usage_store, overrides)
     context_manager = ContextManager(options.memory, options.knowledge, settings=config.memory)
     for spec, handler in context_manager.tools():   # memory_search
         registry.add_core(spec, handler)
@@ -332,15 +349,24 @@ def build_thread_manager(config: RuntimeConfig | None = None, options: EngineOpt
     if web.settings.enabled:                         # web_search, web_fetch ([web_search] providers)
         for spec, handler in web_tools(web):
             registry.add_core(spec, handler)
+    from agenticwf.agent.runtime.code import CodeSearch, CodeSettings, code_tools
+
+    code = options.code or CodeSearch(CodeSettings.from_core_config())
+    if code.settings.enabled:                        # search_code ([code] root, [code.repos])
+        code.sync_in_background()                    # clone the registered repositories
+        for spec, handler in code_tools(code):
+            registry.add_core(spec, handler)
     always = ("web_search",) if web.settings.enabled and web.settings.always_offer else ()   # the model decides
     dispatcher = ToolDispatcher(registry, policy, hooks=options.tool_hooks, top_k=config.top_k, always=always,
                                 prefs=options.tool_prefs, schema_budget_tokens=config.schema_budget_tokens, top_k_skills=config.top_k_skills,
+                                small_catalogue=config.small_catalogue, index_tokens=config.index_tokens,
+                                select_model_above=config.select_model_above,
                                 hidden=getattr(options.knowledge, "hidden_tools", None))   # [knowledge] tools, per user
     services = HarnessServices(llm=llm, tool_dispatcher=dispatcher, task_types=task_types, policy=policy,
                              context_manager=context_manager, store=store, plugins=plugins, mcp=mcp_catalog,
                              skills=skills, otel=Tracing())
     harness = AgentHarness(services, limits=config.limits, model=config.model, on_complete=options.on_complete,
-                           intake=config.intake)
+                           intake=config.intake, overrides=overrides)
     manager = RuntimeThreadManager(harness, Workers(harness, size=config.workers, per_owner=config.max_jobs_per_owner),
                                    max_threads_per_owner=config.max_threads_per_owner)
     if options.crons:

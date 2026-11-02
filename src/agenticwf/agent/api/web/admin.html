@@ -22,6 +22,11 @@ header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;
 .tab{padding:7px 14px;border-radius:9px;color:var(--fg-dim);font-weight:550}
 .tab:hover{background:var(--bg-hover);color:var(--fg)}
 .tab.on{background:var(--bg-hover);color:var(--fg)}
+.menu{position:relative}
+.mtab::after{content:'▾';margin-left:6px;font-size:11px;color:var(--fg-faint)}
+.mlist{position:absolute;top:calc(100% + 6px);left:0;z-index:10;min-width:170px;display:flex;flex-direction:column;gap:2px;padding:6px;
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.mlist .tab{text-align:left;white-space:nowrap}
 .spacer{flex:1}
 .who{font-size:14px;color:var(--fg-dim)}
 .icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--fg-dim)}
@@ -69,6 +74,22 @@ button.card:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--border)
 #group-dlg .subhead{font-size:13px;font-weight:600;color:var(--fg-dim);text-transform:uppercase;letter-spacing:.03em;margin:14px 0 6px}
 #group-add{margin:8px 0 0}
 .items.wide{background:var(--bg)}
+.grp{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px}
+.grp>.gh{display:flex;align-items:center;gap:10px;padding:9px 14px}
+.grp>.gh .fold{display:flex;align-items:center;gap:8px;flex:1;min-width:0;flex-wrap:wrap;text-align:left;padding:2px 0}
+.grp>.gh .fold::before{content:'▸';color:var(--fg-faint);display:inline-block;transition:transform .15s}
+.grp.open>.gh .fold::before{transform:rotate(90deg)}
+.grp>.gh .t{font-weight:600}
+.grp>.gh .d{font-size:13px;color:var(--fg-dim)}
+.grp>.gb{border-top:1px solid var(--border)}
+.grp>.gb>.items{border:0;border-radius:0 0 var(--radius) var(--radius)}
+.grp>.gb>.grid{padding:12px}
+.grp>.gb>.empty{border:0;border-radius:0 0 var(--radius) var(--radius)}
+.grp.off>.gh .t{opacity:.55}
+.grp .toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fg-dim);white-space:nowrap;flex:none}
+.toggle select.mode{padding:2px 6px;font-size:13px;border-radius:7px}
+.toggle select.mode.ask{border-color:var(--warn);color:var(--warn)}
+.toggle select.mode.off{color:var(--fg-faint)}
 .empty{font-size:14px;color:var(--fg-faint);border:1px dashed var(--border);border-radius:var(--radius);padding:16px;background:var(--bg)}
 .btn{padding:7px 14px;border-radius:9px;border:1px solid var(--border);background:var(--bg);font-size:14px}
 .btn:hover{background:var(--bg-hover)}
@@ -119,12 +140,24 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
 .tbl tr.hl td{background:color-mix(in srgb,var(--warn) 9%,var(--bg))}
 .tbl td.sugg{min-width:220px;color:var(--fg-dim)}
 .tbl tr.hl td.sugg{color:var(--fg)}
+.tbl.settings td .d{font-size:12px;color:var(--fg-faint);margin-top:2px}
+.tbl.settings td.v{white-space:nowrap}.tbl.settings td.eff{font-weight:600}
+.tbl.settings .setv{padding:3px 8px;font-size:13px;width:100%;min-width:90px;max-width:220px}
+.tbl.settings tr.changed td.eff{color:var(--accent)}
+.tbl.settings tr.locked td{color:var(--fg-faint)}.tbl.settings tr.locked td.eff{font-weight:400}
+.setadd{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}.setadd input{width:auto}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;z-index:60}
 @media (max-width:760px){.files,.form{grid-template-columns:1fr}.tabs{margin-left:0}.who{display:none}header{gap:8px;padding:0 12px}}
 </style></head><body>
 <header>
   <a class="brand" href="./" title="Back to the chat"><span class="logo">A</span>AgenticWF</a>
-  <nav class="tabs"><button class="tab" data-tab="types">Task types</button><button class="tab" data-tab="models">Models</button><button class="tab" data-tab="plugins">Plugins</button><button class="tab" data-tab="mcp">MCP</button><button class="tab" data-tab="tools">Tools</button><button class="tab" data-tab="knowledge">Knowledge</button><button class="tab" data-tab="skills">Skills</button><button class="tab" data-tab="memory">Memory</button><button class="tab" data-tab="tokens">Tokens</button><button class="tab" data-tab="groups">Groups</button><a class="tab" href="crons" title="Crons: issues and reports">Crons</a></nav>
+  <nav class="tabs">
+    <div class="menu"><button class="tab mtab" aria-haspopup="true" aria-expanded="false">Agent</button><div class="mlist" hidden><button class="tab" data-tab="types">Task types</button><button class="tab" data-tab="instructions">Instructions</button><button class="tab" data-tab="settings">Settings</button><button class="tab" data-tab="models">Models</button></div></div>
+    <div class="menu"><button class="tab mtab" aria-haspopup="true" aria-expanded="false">Capabilities</button><div class="mlist" hidden><button class="tab" data-tab="tools">Tools</button><button class="tab" data-tab="mcp">MCP</button><button class="tab" data-tab="skills">Skills</button><button class="tab" data-tab="plugins">Plugins</button></div></div>
+    <div class="menu"><button class="tab mtab" aria-haspopup="true" aria-expanded="false">Context</button><div class="mlist" hidden><button class="tab" data-tab="knowledge">Knowledge</button><button class="tab" data-tab="code">Code</button><button class="tab" data-tab="memory">Memory</button></div></div>
+    <div class="menu"><button class="tab mtab" aria-haspopup="true" aria-expanded="false">Access</button><div class="mlist" hidden><button class="tab" data-tab="tokens">Tokens</button><button class="tab" data-tab="groups">Groups</button></div></div>
+    <a class="tab" href="crons" title="Crons: issues and reports">Crons</a>
+  </nav>
   <span class="spacer"></span>
   <span class="who" id="who"></span>
   <a class="icon" id="account-link" title="Edit your profile" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></a>
@@ -143,6 +176,31 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
     <section class="group"><div class="ghead"><h2>System</h2><span class="count" id="n-system"></span><span class="hint">read-only</span></div><div class="grid" id="g-system"></div></section>
     <section class="group"><div class="ghead"><h2>Plugins</h2><span class="count" id="n-plugin"></span><span class="hint">read-only · named &lt;plugin&gt;.&lt;type&gt;</span></div><div class="grid" id="g-plugin"></div></section>
     <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-user"></span></div><div class="grid" id="g-user"></div></section>
+  </div>
+
+  <div id="view-instructions" hidden>
+    <div class="pagehead">
+      <div><h1>Instructions</h1>
+        <p class="lead">What the agent is told, as this server ships it: the task types, the prompts the runtime gives the
+          model around a task, and the wording of its own tools. Open one to read it; <b>Clone</b> copies it into a task
+          type of yours, where you change it. Tasks of that type then use your copy.</p></div>
+    </div>
+    <p class="note" id="instr-off" hidden>User task types are not enabled on this server ([context] sandbox_root): you can read these, not clone them.</p>
+    <section class="group"><div class="ghead"><h2>Task types</h2><span class="count" id="n-itypes"></span><span class="hint">AGENTS.md and WORKFLOW.md · clone to start a type of yours</span></div><div class="grid" id="g-itypes"></div></section>
+    <section class="group"><div class="ghead"><h2>Prompts</h2><span class="count" id="n-iprompts"></span><span class="hint">per task type: yours to clone · the others apply to every task (operators: &lt;system dir&gt;/prompts/)</span></div><div class="grid" id="g-iprompts"></div></section>
+    <section class="group"><div class="ghead"><h2>Core tools</h2><span class="count" id="n-itools"></span><span class="hint">the description the model reads · the arguments stay, they are read by code</span></div><div class="grid" id="g-itools"></div></section>
+  </div>
+
+  <div id="view-settings" hidden>
+    <div class="pagehead">
+      <div><h1>Settings</h1>
+        <p class="lead">How the agent runs tasks and chooses models, as agent.cfg sets them. Managers change a setting for
+          <b>everyone</b>; you change some for <b>your own</b> tasks (whether to split and plan, fewer steps). Yours win
+          over everyone's, which win over agent.cfg. Nothing is written to agent.cfg; empty a field to go back. Changes
+          apply to tasks started after them. A task type's own settings are in its dialog (Task types). Greyed rows
+          are managers' to change.</p></div>
+    </div>
+    <div id="g-settings"></div>
   </div>
 
   <div id="view-models" hidden>
@@ -174,13 +232,10 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
       <div><h1>Plugins</h1>
         <p class="lead">A plugin is a directory that adds task types, tools or MCP endpoints. System plugins are installed by
           operators and shared with everyone unless they limit who may use them; plugins in your sandbox are yours only.
-          A plugin that provides several kinds is listed in each group.</p></div>
+          Each plugin is a group with what it provides; its switch turns all of its tools and skills on or off for your tasks.</p></div>
       <button class="btn" id="reload-plugins" hidden title="Read the system plugins again and reconnect their MCP servers">Reload</button>
     </div>
-    <section class="group"><div class="ghead"><h2>Task type plugins</h2><span class="count" id="n-ptypes"></span><span class="hint">types named &lt;plugin&gt;.&lt;type&gt;</span></div><div class="grid" id="g-ptypes"></div></section>
-    <section class="group"><div class="ghead"><h2>Tool plugins</h2><span class="count" id="n-ptools"></span><span class="hint">tools named &lt;plugin&gt;__&lt;tool&gt;</span></div><div class="grid" id="g-ptools"></div></section>
-    <section class="group"><div class="ghead"><h2>MCP plugins</h2><span class="count" id="n-pmcp"></span><span class="hint">MCP endpoints; their tools are named &lt;plugin&gt;__&lt;tool&gt;</span></div><div class="grid" id="g-pmcp"></div></section>
-    <section class="group" id="s-pother" hidden><div class="ghead"><h2>Empty or broken</h2><span class="count" id="n-pother"></span><span class="hint">provide nothing usable</span></div><div class="grid" id="g-pother"></div></section>
+    <section class="group"><div class="ghead"><h2>Plugins</h2><span class="count" id="n-plugins"></span><span class="hint">task types named &lt;plugin&gt;.&lt;type&gt;, tools &lt;plugin&gt;__&lt;tool&gt;</span></div><div id="g-plugins"></div></section>
   </div>
 
   <div id="view-mcp" hidden>
@@ -194,7 +249,7 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
     <section class="group"><div class="ghead"><h2>From plugins</h2><span class="count" id="n-eplugin"></span><span class="hint">installed by operators · read-only</span></div><div class="grid" id="g-eplugin"></div></section>
     <section class="group"><div class="ghead"><h2>Shared with me</h2><span class="count" id="n-eshared"></span><span class="hint">added by others · read-only</span></div><div class="grid" id="g-eshared"></div></section>
     <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-emine"></span></div><div class="grid" id="g-emine"></div></section>
-    <section class="group"><div class="ghead"><h2>MCP tools</h2><span class="count" id="n-mtools"></span><span class="hint">every MCP tool you can use · named &lt;endpoint or plugin&gt;__&lt;tool&gt;</span></div>
+    <section class="group"><div class="ghead"><h2>MCP tools</h2><span class="count" id="n-mtools"></span><span class="hint">by endpoint · named &lt;endpoint or plugin&gt;__&lt;tool&gt; · the switch: use them in your tasks</span></div>
       <div class="toolbar"><input id="tool-filter" placeholder="Filter by name, endpoint or summary"><select id="tool-group"><option value="">All</option><option value="plugin">From plugins</option><option value="shared">Shared with me</option><option value="mine">Mine</option></select></div>
       <div id="g-mtools"></div></section>
   </div>
@@ -206,9 +261,8 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
           endpoint. Switch off a tool, or every tool of a plugin or an endpoint, to keep it out of your tasks; nobody else is
           affected. Tools come with plugins and MCP endpoints (add yours on the MCP tab); skills are on their own tab.</p></div>
     </div>
-    <section class="group"><div class="ghead"><h2>Plugins and MCP endpoints</h2><span class="count" id="n-tgroups"></span><span class="hint">switch all of their tools at once</span></div><div id="g-tgroups"></div></section>
-    <section class="group"><div class="ghead"><h2>Tools</h2><span class="count" id="n-tools"></span><span class="hint">named as your tasks call them</span></div>
-      <div class="toolbar"><input id="tools-filter" placeholder="Filter by name, source or summary"><select id="tools-kind"><option value="">All</option><option value="builtin">Agent and system</option><option value="plugin">From plugins</option><option value="mcp">MCP</option><option value="off">Switched off</option></select></div>
+    <section class="group"><div class="ghead"><h2>Tools</h2><span class="count" id="n-tools"></span><span class="hint">grouped by where they come from · named as your tasks call them · a group's switch: all of its tools</span></div>
+      <div class="toolbar"><input id="tools-filter" placeholder="Filter by name, source or summary"><select id="tools-kind"><option value="">All</option><option value="on">In use</option><option value="ask">Ask first</option><option value="off">Switched off</option></select></div>
       <div id="g-tools"></div></section>
   </div>
 
@@ -233,18 +287,30 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
     <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-kservices"></span><span class="hint">its knowledge bases are named &lt;ref&gt;@&lt;name&gt;</span></div><div id="g-kmineservices"></div></section>
   </div>
 
+  <div id="view-code" hidden>
+    <div class="pagehead">
+      <div><h1>Code</h1>
+        <p class="lead">Source repositories the agent searches and reads for your tasks (search_code, read_file). System
+          repositories are configured by operators; repositories you add are cloned on the agent and kept up to date, and
+          only you read them unless you share them. The model names files <code>&lt;repository&gt;/&lt;path&gt;</code>.</p></div>
+      <button class="btn primary" id="new-repo">Add repository</button>
+    </div>
+    <p class="note" id="code-note" hidden></p>
+    <section class="group"><div class="ghead"><h2>System</h2><span class="count" id="n-rsystem"></span><span class="hint">configured by operators · read-only</span></div><div id="g-rsystem"></div></section>
+    <section class="group"><div class="ghead"><h2>Shared with me</h2><span class="count" id="n-rshared"></span><span class="hint">added by others · read-only</span></div><div id="g-rshared"></div></section>
+    <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-rmine"></span></div><div id="g-rmine"></div></section>
+  </div>
+
   <div id="view-skills" hidden>
     <div class="pagehead">
       <div><h1>Skills</h1>
         <p class="lead">A skill is a set of instructions for one kind of work, such as release notes or a review checklist. The agent
           sees the skills closest to each request and loads one when it fits; the skill's instructions then guide the task, and
-          the tools it names are the only ones offered. Skills you add are yours: only you see them until you share them.</p></div>
+          the tools it names are the only ones offered. Skills you add are yours: only you see them until you share them.
+          A group's switch turns all of its skills on or off for your tasks; nobody else is affected.</p></div>
       <button class="btn primary" id="new-skill">New skill</button>
     </div>
-    <section class="group"><div class="ghead"><h2>System</h2><span class="count" id="n-ksystem"></span><span class="hint">installed by operators · read-only</span></div><div class="grid" id="g-ksystem"></div></section>
-    <section class="group"><div class="ghead"><h2>Plugins</h2><span class="count" id="n-kplugin"></span><span class="hint">read-only · named &lt;plugin&gt;.&lt;skill&gt;</span></div><div class="grid" id="g-kplugin"></div></section>
-    <section class="group"><div class="ghead"><h2>Shared with me</h2><span class="count" id="n-kshared"></span><span class="hint">added by others · they ask before they load</span></div><div class="grid" id="g-kshared"></div></section>
-    <section class="group"><div class="ghead"><h2>Mine</h2><span class="count" id="n-kmine"></span></div><div class="grid" id="g-kmine"></div></section>
+    <section class="group"><div class="ghead"><h2>Skills</h2><span class="count" id="n-skills"></span><span class="hint">grouped by where they come from · plugin skills named &lt;plugin&gt;.&lt;skill&gt;</span></div><div id="g-skills"></div></section>
   </div>
 
   <div id="view-memory" hidden>
@@ -333,10 +399,28 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
     <div class="files">
       <div class="file"><label>AGENTS.md <span class="src" id="src-agents"></span><textarea id="f-agents" spellcheck="false"></textarea></label></div>
       <div class="file"><label>WORKFLOW.md <span class="src" id="src-workflow"></span><textarea id="f-workflow" spellcheck="false"></textarea></label></div>
+      <div class="file" id="file-yaml"><label>task.yaml <span class="src" id="src-yaml"></span><textarea id="f-yaml" spellcheck="false" readonly></textarea></label></div>
     </div>
+    <div class="dsec" id="type-set"><h4>Settings</h4><p class="note" id="type-set-note"></p><div id="type-set-table"></div></div>
+    <p class="note" id="type-note" hidden style="margin-top:12px"></p>
+    <div class="dsec" id="type-extra"><h4>Prompts and tool wording</h4><ul class="items" id="type-extra-list"></ul></div>
   </div>
   <div class="dfoot"><span class="err" id="type-err"></span>
-    <button class="btn danger" id="type-delete">Delete</button><button class="btn" data-close>Close</button><button class="btn primary" id="type-save">Save</button></div>
+    <button class="btn danger" id="type-delete">Delete</button><button class="btn" data-close>Close</button><button class="btn" id="type-clone">Clone</button><button class="btn primary" id="type-save">Save</button></div>
+</dialog>
+
+<dialog id="instr-dlg">
+  <div class="dhead"><h3 id="instr-title"></h3><span class="chip" id="instr-src"></span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="instr-note"></p>
+    <div class="form" id="instr-target" style="margin-bottom:12px">
+      <label>Into task type<select id="instr-type"></select></label>
+      <label id="instr-new-row">New type name<input id="instr-new" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="e.g. code-review"></label>
+    </div>
+    <div class="file"><label><span id="instr-file"></span><textarea id="instr-text" spellcheck="false"></textarea></label></div>
+  </div>
+  <div class="dfoot"><span class="err" id="instr-err"></span>
+    <button class="btn danger" id="instr-remove">Remove from type</button><button class="btn" data-close>Close</button><button class="btn" id="instr-clone">Clone</button><button class="btn primary" id="instr-save">Save</button></div>
 </dialog>
 
 <dialog id="model-dlg">
@@ -406,6 +490,23 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
     <button class="btn" data-close>Close</button><button class="btn primary" id="endpoint-save">Save</button></div>
 </dialog>
 
+<dialog id="repo-dlg">
+  <div class="dhead"><h3 id="repo-title"></h3><span class="chip own">yours</span><button class="icon" data-close title="Close">✕</button></div>
+  <div class="dbody">
+    <p class="note" id="repo-note"></p>
+    <form class="form" id="repo-form" autocomplete="off">
+      <label>Name<input name="rname" required pattern="[A-Za-z0-9][A-Za-z0-9._\-]{0,63}" placeholder="e.g. rucio (files: rucio/…)"></label>
+      <label>Label<input name="label" placeholder="Optional"></label>
+      <label class="wide">URL<input name="url" required pattern="https://.*" placeholder="https://github.com/rucio/rucio.git"></label>
+      <label>Branch<input name="branch" placeholder="Default branch"></label>
+      <label>Who may read it<select name="visibility"><option value="user">Only me</option><option value="organization">My organization</option><option value="all">Everyone (managers)</option></select></label>
+    </form>
+  </div>
+  <div class="dfoot"><span class="err" id="repo-err"></span>
+    <button class="btn danger" id="repo-delete">Remove</button><button class="btn" id="repo-refresh" title="Clone or update it now">Update now</button>
+    <button class="btn" data-close>Close</button><button class="btn primary" id="repo-save">Save</button></div>
+</dialog>
+
 <dialog id="kservice-dlg">
   <div class="dhead"><h3 id="kservice-title"></h3><span class="chip own">yours</span><button class="icon" data-close title="Close">✕</button></div>
   <div class="dbody">
@@ -466,7 +567,7 @@ input[type=checkbox]{width:auto;padding:0;margin:0;accent-color:var(--accent)}
     </div>
   </div>
   <div class="dfoot"><span class="err" id="skill-err"></span>
-    <button class="btn danger" id="skill-delete">Remove</button><button class="btn" data-close>Close</button><button class="btn primary" id="skill-save">Save</button></div>
+    <button class="btn danger" id="skill-delete">Remove</button><label class="toggle" id="skill-use" title="How your tasks use this skill (only yours are affected)">for me<select class="mode" id="skill-mode"><option value="on">use</option><option value="ask">ask first</option><option value="off">off</option></select></label><button class="btn" data-close>Close</button><button class="btn primary" id="skill-save">Save</button></div>
 </dialog>
 
 <script>
@@ -510,11 +611,24 @@ $('theme').onclick = () => {
 };
 document.querySelectorAll('dialog [data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
 
-// tabs, remembered in the address (#types, #models, #plugins, #mcp, #knowledge, #skills, #memory, #tokens, #groups)
-const VIEWS = {types: () => loadTypes(), models: () => { loadUsage().catch(e => toast(e.message)); return loadModels(); }, plugins: () => loadPlugins(), mcp: () => loadMcp(), tools: () => loadTools(),
-               knowledge: () => loadKnowledge(), skills: () => loadSkills(), memory: () => loadMemory(), tokens: () => loadTokens(), groups: () => loadGroups()};
+// tabs, remembered in the address (#types, #instructions, #models, #plugins, #mcp, #knowledge, #code, #skills, #memory, #tokens, #groups)
+const VIEWS = {types: () => loadTypes(), instructions: () => loadInstructions(), settings: () => loadSettings(), models: () => { loadUsage().catch(e => toast(e.message)); return loadModels(); }, plugins: () => loadPlugins(), mcp: () => loadMcp(), tools: () => loadTools(),
+               knowledge: () => loadKnowledge(), code: () => loadCode(), skills: () => loadSkills(), memory: () => loadMemory(), tokens: () => loadTokens(), groups: () => loadGroups()};
+// The tabs sit in dropdown menus; a menu is marked while one of its tabs is shown.
+const menus = [...document.querySelectorAll('.menu')];
+function closeMenus(except) {
+  menus.filter(m => m !== except).forEach(m => { m.querySelector('.mlist').hidden = true; m.querySelector('.mtab').setAttribute('aria-expanded', 'false'); });
+}
+menus.forEach(m => m.querySelector('.mtab').onclick = () => {
+  const list = m.querySelector('.mlist');
+  closeMenus(m); list.hidden = !list.hidden; m.querySelector('.mtab').setAttribute('aria-expanded', String(!list.hidden));
+});
+document.addEventListener('click', e => { if (!e.target.closest('.menu')) closeMenus(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
 function show(tab) {
   document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
+  menus.forEach(m => m.querySelector('.mtab').classList.toggle('on', !!m.querySelector('.mlist .tab.on')));
+  closeMenus();
   for (const v of Object.keys(VIEWS)) $('view-' + v).hidden = tab !== v;
   history.replaceState(null, '', '#' + tab);
   VIEWS[tab]().catch(e => toast(e.message));
@@ -525,6 +639,57 @@ function fill(gridId, countId, items, render, emptyText) {
   const grid = $(gridId); grid.textContent = ''; $(countId).textContent = items.length ? String(items.length) : '';
   if (!items.length) { grid.append(el('div', 'empty', emptyText)); return; }
   items.forEach(i => grid.append(render(i)));
+}
+
+// A group that folds (remembered in this browser), its chips, and optionally a switch for all of it.
+const folded = new Set((store.get('folded') || '').split('\n').filter(Boolean));
+function groupBox({key, title, chips = [], desc = '', sw = null, body, off = false}) {
+  const g = el('section', 'grp' + (off ? ' off' : '')), head = el('div', 'gh'), fold = el('button', 'fold'), box = el('div', 'gb');
+  fold.append(el('span', 't', title), ...chips.filter(Boolean));
+  if (desc) fold.append(el('span', 'd', desc));
+  head.append(fold); if (sw) head.append(sw);
+  box.append(body);
+  const show = open => { g.classList.toggle('open', open); box.hidden = !open; };
+  show(!folded.has(key));
+  fold.onclick = () => {
+    const open = box.hidden; show(open);
+    open ? folded.delete(key) : folded.add(key); store.set('folded', [...folded].join('\n'));
+  };
+  g.append(head, box);
+  return g;
+}
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+function itemList(items, render) { const ul = el('ul', 'items'); items.forEach(i => ul.append(render(i))); return ul; }
+// How your tasks use a tool, a skill or a group: `on`, `ask` (each call waits for your approval) or
+// `off`; null shows as mixed. Saves at once; on failure it goes back and says why.
+const MODES = [['on', 'use'], ['ask', 'ask first'], ['off', 'off']], STRICT = {on: 0, ask: 1, off: 2};
+const MODE_SAID = {on: 'In use', ask: 'Asks you first', off: 'Switched off'};
+function modeSelect(mode, title, save, reload) {
+  const label = el('label', 'toggle'), sel = el('select', 'mode ' + (mode || ''));
+  label.title = title;
+  if (mode === null) { const o = new Option('mixed', '', true, true); o.disabled = true; sel.append(o); }
+  MODES.forEach(([v, text]) => sel.append(new Option(text, v, false, v === mode)));
+  sel.onchange = async () => {
+    sel.disabled = true;
+    try { await save(sel.value); toast(MODE_SAID[sel.value]); await reload(); }
+    catch (x) { sel.value = mode || ''; toast(x.message); } finally { sel.disabled = false; }
+  };
+  label.append(sel);
+  return label;
+}
+// The switch of a group: `provider` a plugin or an MCP endpoint (tools API group), switched as a whole,
+// or null; `items` the tools and skills in it, {name, mode}, switched one by one. Each item counts
+// with the stricter of its own mode and the provider's; mixed when they differ. With a provider,
+// use and ask set it and bring every item back to use; off switches only the provider off.
+function groupSwitch(provider, items, reload) {
+  if (!provider && !items.length) return el('span', 'chip lock', 'always on');
+  const strictest = (a, b) => STRICT[a] >= STRICT[b] ? a : b;
+  const modes = new Set(items.map(i => provider ? strictest(provider.mode, i.mode) : i.mode));
+  const state = provider && provider.mode === 'off' ? 'off' : !items.length ? provider.mode : modes.size === 1 ? [...modes][0] : null;
+  return modeSelect(state, 'How your tasks use all of them (only yours are affected)', async mode => {
+    if (provider) await api('PUT', 'api/v1/tools/prefs', {target: provider.target, id: provider.id, mode});
+    if (items.length && (mode !== 'off' || !provider)) await api('PUT', 'api/v1/tools/prefs/many', {names: items.map(i => i.name), mode: provider ? 'on' : mode});
+  }, reload);
 }
 
 // ------------------------------------------------------------------------------------- task types
@@ -547,10 +712,12 @@ function typeCard(t) {
   if (s.model) bits.push('model ' + s.model);
   if (s.max_steps) bits.push(s.max_steps + ' steps');
   if (s.plan) bits.push('plan ' + s.plan);
-  c.append(name, el('div', 'sub', t.source === 'plugin' ? `from plugin ${t.plugin}` : (bits.join(' · ') || ' ')));
+  c.append(name, el('div', 'sub', t.description || (t.source === 'plugin' ? `from plugin ${t.plugin}` : (bits.join(' · ') || ' '))));
   const meta = el('div', 'meta');
   for (const f of ['AGENTS.md', 'WORKFLOW.md']) meta.append(el('span', 'chip' + (t.files.includes(f) ? '' : ' lock'), t.files.includes(f) ? f : f + ' (default)'));
-  if (t.source === 'plugin' && bits.length) meta.append(el('span', 'chip', bits.join(' · ')));
+  const extra = t.files.filter(f => f.includes('/')).length;   // prompts/… and core-tools/…
+  if (extra) meta.append(el('span', 'chip', `+${extra} prompt${extra > 1 ? 's' : ''}/tool${extra > 1 ? 's' : ''}`));
+  if ((t.source === 'plugin' || t.description) && bits.length) meta.append(el('span', 'chip', bits.join(' · ')));
   c.append(meta);
   c.onclick = () => openType(t.id);
   return c;
@@ -563,12 +730,54 @@ async function openType(name) {
   const kv = $('type-settings'); kv.textContent = ''; kv.hidden = false;
   const add = (k, v) => { kv.append(el('dt', '', k), el('dd', '', v)); };
   add('Source', t.source === 'plugin' ? `plugin ${t.plugin}` : t.source);
-  add('Mode', t.settings.mode); if (t.settings.model) add('Model', t.settings.model);
-  if (t.settings.max_steps) add('Max steps', String(t.settings.max_steps)); if (t.settings.plan) add('Planning', t.settings.plan);
+  if (t.description) add('For', t.description);
   setFile('agents', t.content['AGENTS.md'], t.editable); setFile('workflow', t.content['WORKFLOW.md'], t.editable);
+  const yaml = t.content['task.yaml'];   // read-only: operators write it; changes go to the database (Settings below)
+  $('file-yaml').hidden = !yaml;
+  if (yaml) { $('f-yaml').value = yaml.content; $('src-yaml').textContent = yaml.inherited ? `· inherited (${yaml.source})` : `· ${yaml.source} · read-only`; }
+  $('type-set').hidden = false;
+  $('type-set-note').textContent = (t.settings_inherit ? 'This type has no task.yaml of its own: it inherits default’s settings, and default’s changes. ' : '') +
+    (t.source === 'user' ? 'Your own types cannot have a task.yaml; managers may still change their settings here. ' : '') +
+    'task.yaml stays as it is: changes are kept in the database.';
+  const sec = $('type-set-table'); sec.textContent = '';
+  sec.append(settingsTable(t.settings_section, t.settings_rows, t.can_set_all, 'task.yaml', () => openType(t.id)));
   $('type-save').hidden = $('type-delete').hidden = !t.editable; $('type-err').textContent = '';
-  $('type-dlg').showModal();
+  $('type-clone').hidden = !typesCanAdd; $('type-note').hidden = true; cloneExtra = {};
+  typeExtras(t);
+  if (!$('type-dlg').open) $('type-dlg').showModal();
 }
+function extraFiles(t) { return Object.keys(t.content).filter(p => p.includes('/')).sort(); }
+function typeExtras(t) {
+  // The prompts and core-tool wording the type defines itself: open one to read it, or (yours) to change it.
+  const list = $('type-extra-list'), paths = extraFiles(t); list.textContent = '';
+  $('type-extra').hidden = !paths.length && !t.editable;
+  if (!paths.length) list.append(el('li', '', 'None: the Instructions tab clones prompts and tool wording into a type of yours.'));
+  for (const path of paths) {
+    const li = el('li', 'click'); li.append(el('code', '', path));
+    li.onclick = () => { $('type-dlg').close(); openInstr({title: `${t.id} · ${path}`, path, content: t.content[path].content,
+      source: t.content[path].source, type: t.editable ? t.name : null, clonable: true}); };
+    list.append(li);
+  }
+}
+let cloneExtra = {};   // a clone's prompts and tool wording, saved with it
+$('type-clone').onclick = () => {
+  const t = currentType; if (!t) return;
+  currentType = null; cloneExtra = Object.fromEntries(extraFiles(t).map(p => [p, t.content[p].content]));
+  $('type-title').textContent = 'Clone of ' + t.id; $('type-src').textContent = 'yours'; $('type-name-row').hidden = false;
+  $('type-name').value = t.editable ? '' : t.name.split('.').pop(); $('type-settings').hidden = true; $('type-err').textContent = '';
+  $('file-yaml').hidden = $('type-set').hidden = true;
+  for (const [key, file] of [['agents', 'AGENTS.md'], ['workflow', 'WORKFLOW.md']]) {
+    const area = $('f-' + key); area.readOnly = false; area.value = t.content[file].content;
+    $('src-' + key).textContent = '· from ' + t.content[file].source;
+  }
+  const s = t.settings, kept = Object.keys(cloneExtra);
+  const bits = [s.mode !== 'default' && 'mode ' + s.mode, s.model && 'model ' + s.model, s.max_steps && s.max_steps + ' steps', s.plan && 'plan ' + s.plan].filter(Boolean);
+  $('type-note').textContent = (kept.length ? `Also copied: ${kept.join(', ')}. ` : '') +
+    (t.source !== 'user' ? `Settings (${bits.join(', ') || 'tools, knowledge, budget'}) are not copied: operators set them in task.yaml, managers change them on the type.` : '');
+  $('type-note').hidden = !$('type-note').textContent;
+  $('type-extra').hidden = true; $('type-clone').hidden = $('type-delete').hidden = true; $('type-save').hidden = false;
+  $('type-name').focus();
+};
 function setFile(key, file, editable) {
   const area = $('f-' + key);
   area.readOnly = !editable;
@@ -582,6 +791,8 @@ $('new-type').onclick = async () => {
   currentType = null;
   $('type-title').textContent = 'New task type'; $('type-src').textContent = 'yours'; $('type-name-row').hidden = false;
   $('type-name').value = ''; $('type-settings').hidden = true; $('type-err').textContent = '';
+  $('file-yaml').hidden = $('type-set').hidden = true;
+  cloneExtra = {}; $('type-extra').hidden = $('type-note').hidden = $('type-clone').hidden = true;
   for (const [key, file] of [['agents', 'AGENTS.md'], ['workflow', 'WORKFLOW.md']]) {
     const area = $('f-' + key); area.readOnly = false; area.value = base.content[file].content;
     area.placeholder = 'Empty: inherited from default'; $('src-' + key).textContent = '· starts from default';
@@ -593,7 +804,8 @@ $('type-save').onclick = async () => {
   const name = currentType ? currentType.name : $('type-name').value.trim();   // always one of yours: your scope
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) { $('type-err').textContent = 'Name: lowercase letters, digits and single dashes'; return; }
   try {
-    await api('PUT', 'api/v1/task-types/' + encodeURIComponent(name), {agents_md: $('f-agents').value || null, workflow_md: $('f-workflow').value || null});
+    await api('PUT', 'api/v1/task-types/' + encodeURIComponent(name), {agents_md: $('f-agents').value || null, workflow_md: $('f-workflow').value || null,
+                                                                        files: currentType ? {} : cloneExtra});
     $('type-dlg').close(); toast(`Saved ${name}`); loadTypes();
   } catch (e) { $('type-err').textContent = e.message; }
 };
@@ -601,6 +813,189 @@ $('type-delete').onclick = async () => {
   if (!currentType || !confirm(`Delete task type ${currentType.name}? New tasks of this type will use default.`)) return;
   try { await api('DELETE', 'api/v1/task-types/' + encodeURIComponent(currentType.id)); $('type-dlg').close(); toast('Deleted'); loadTypes(); }
   catch (e) { $('type-err').textContent = e.message; }
+};
+
+// ------------------------------------------------------------------------------------- settings
+// Settings changed over agent.cfg and task.yaml (docs/admin-page.md, Settings), which stay as they are.
+async function loadSettings() {
+  const [data, used] = await Promise.all([api('GET', 'api/v1/settings'), api('GET', 'api/v1/tools')]), box = $('g-settings');
+  box.textContent = '';
+  for (const s of data.sections) {
+    const sec = el('section', 'group'), head = el('div', 'ghead');
+    head.append(el('h2', '', s.title), el('span', 'hint', s.source + (data.can_set_all ? ' · you change it for everyone' : ' · managers change it')));
+    sec.append(head, settingsTable(s.section, s.rows, data.can_set_all, 'agent.cfg', loadSettings));
+    if (s.add_keys) sec.append(budgetAdd(s.section));
+    box.append(sec);
+  }
+  box.append(timeoutSection(used));
+}
+// A budget or highest tier for one user or organization (managers): the row then shows above.
+function budgetAdd(section) {
+  const row = el('div', 'setadd'), who = el('select'), name = el('input'), what = el('select'), value = el('input'), b = el('button', 'btn', 'Add');
+  [['user', 'user'], ['organization', 'organization']].forEach(([v, l]) => who.append(new Option(l, v)));
+  [['budget', 'budget'], ['max_tier', 'highest tier']].forEach(([v, l]) => what.append(new Option(l, v)));
+  name.placeholder = 'subject or organization'; value.placeholder = '20 per day · or small, medium, large';
+  b.onclick = async () => {
+    const id = name.value.trim();
+    if (!id || !value.value.trim()) { toast('Name whom it is for, and the value'); return; }
+    const key = what.value === 'budget' ? `${who.value}.${id}` : who.value === 'user' ? `max_tier.${id}` : `max_tier.organization.${id}`;
+    try { await api('PUT', 'api/v1/settings', {section, key, value: value.value.trim(), scope: 'all'}); toast('Saved'); await loadSettings(); }
+    catch (x) { toast(x.message); }
+  };
+  row.append(el('span', 'd', 'For one'), who, name, what, value, b);
+  return row;
+}
+// How long one call of each tool may run: the tool's own, a manager's for everyone (PUT /api/v1/tools/timeout).
+function timeoutSection(used) {
+  const sec = el('section', 'group'), head = el('div', 'ghead'), filter = el('input');
+  head.append(el('h2', '', 'Tool timeouts'), el('span', 'hint', 'seconds one call may run' + (used.can_set_timeouts ? ' · you change it for everyone' : ' · managers change it')));
+  filter.placeholder = 'Filter tools'; filter.className = 'setv';
+  const wrap = el('div', 'tblwrap'), t = el('table', 'tbl settings'), thead = el('thead'), hr = el('tr'), body = el('tbody');
+  for (const h of ['Tool', 'its own', 'Everyone', 'In effect']) hr.append(el('th', '', h));
+  thead.append(hr); t.append(thead, body); wrap.append(t);
+  const rows = [...used.tools].sort((a, b) => (a.timeout === a.timeout_default) - (b.timeout === b.timeout_default) || a.name.localeCompare(b.name));
+  const render = () => {
+    const q = filter.value.trim().toLowerCase(); body.textContent = '';
+    for (const tool of rows.filter(x => !q || x.name.toLowerCase().includes(q))) {
+      const changed = tool.timeout !== tool.timeout_default;
+      const tr = el('tr', (changed ? 'changed' : '') + (used.can_set_timeouts ? '' : ' locked')), name = el('td'), all = el('td');
+      name.append(el('code', '', tool.name)); if (tool.summary) name.append(el('div', 'd', tool.summary));
+      if (used.can_set_timeouts) {
+        const input = el('input', 'setv'); input.type = 'number'; input.min = '1'; input.max = '3600'; input.step = 'any';
+        input.placeholder = 'not set'; input.value = changed ? String(tool.timeout) : '';
+        input.title = 'For everyone’s tasks, 1–3600 s; empty: back to the tool’s own';
+        input.onchange = async () => {
+          const timeout = input.value.trim() === '' ? null : Number(input.value);
+          if (timeout !== null && !(timeout >= 1 && timeout <= 3600)) { toast('A timeout is 1 to 3600 seconds'); input.value = changed ? String(tool.timeout) : ''; return; }
+          try { await api('PUT', 'api/v1/tools/timeout', {name: tool.name, timeout}); toast(timeout === null ? 'Back to the tool’s own' : 'Saved'); await loadSettings(); }
+          catch (x) { toast(x.message); }
+        };
+        all.append(input);
+      } else all.append(el('span', '', changed ? String(tool.timeout) : '—'));
+      tr.append(name, el('td', 'v', `${tool.timeout_default} s`), all, el('td', 'v eff', `${+tool.timeout.toFixed(1)} s`));
+      body.append(tr);
+    }
+  };
+  filter.oninput = render; render();
+  sec.append(head, filter, wrap);
+  return sec;
+}
+const showValue = v => v === null || v === undefined ? '—' : Array.isArray(v) ? (v.join(', ') || '(none)') : String(v);
+// One row per setting: the file's value, everyone's change (managers edit it), yours (some settings
+// only), and the value your tasks get.
+function settingsTable(section, rows, canAll, fileLabel, reload) {
+  const wrap = el('div', 'tblwrap'), t = el('table', 'tbl settings'), thead = el('thead'), hr = el('tr'), body = el('tbody');
+  for (const h of ['Setting', fileLabel, 'Everyone', 'Mine', 'In effect']) hr.append(el('th', '', h));
+  thead.append(hr); t.append(thead, body); wrap.append(t);
+  for (const r of rows) {
+    const tr = el('tr', (r.all !== null || r.mine !== null ? 'changed' : '') + (canAll || r.personal ? '' : ' locked')), name = el('td');
+    name.append(el('code', '', r.key)); if (r.help) name.append(el('div', 'd', r.help));
+    const all = el('td'), mine = el('td');
+    all.append(canAll ? settingInput(section, r, 'all', reload) : el('span', '', showValue(r.all)));
+    mine.append(r.personal ? settingInput(section, r, 'mine', reload) : el('span', 'd', 'everyone’s'));
+    tr.append(name, el('td', 'v', showValue(r.file)), all, mine, el('td', 'v eff', showValue(r.effective)));
+    body.append(tr);
+  }
+  return wrap;
+}
+function settingInput(section, r, scope, reload) {
+  const current = r[scope], text = current === null || current === undefined ? '' : Array.isArray(current) ? current.join(', ') : String(current);
+  let input;
+  if (r.kind === 'bool' || r.kind === 'choice') {
+    input = el('select'); input.append(new Option('not set', ''));
+    (r.kind === 'bool' ? ['true', 'false'] : r.choices).forEach(c => input.append(new Option(c, c)));
+  } else {
+    input = el('input'); input.type = r.kind === 'int' || r.kind === 'float' ? 'number' : 'text'; input.placeholder = 'not set';
+    if (r.kind === 'float') input.step = 'any';
+    if (r.kind === 'list') input.placeholder = 'not set · names, comma separated';
+  }
+  input.className = 'setv'; input.value = text;
+  input.title = scope === 'all' ? 'For everyone’s tasks; empty: back to the file' : 'For your own tasks; empty: back to everyone’s' +
+    (r.key === 'max_steps' ? ' (counts only when lower)' : '');
+  input.onchange = async () => {
+    const raw = input.value.trim();
+    const value = raw === '' ? null : r.kind === 'bool' ? raw === 'true' : r.kind === 'int' ? parseInt(raw, 10)
+      : r.kind === 'float' ? Number(raw) : r.kind === 'list' ? raw.split(/[\s,]+/).filter(Boolean) : raw;
+    input.disabled = true;
+    try { await api('PUT', 'api/v1/settings', {section, key: r.key, value, scope}); toast(value === null ? 'Back to the layer below' : 'Saved'); await reload(); }
+    catch (x) { input.value = text; toast(x.message); } finally { input.disabled = false; }
+  };
+  return input;
+}
+
+// ------------------------------------------------------------------------------------- instructions
+let instrData = null;
+async function loadInstructions() {
+  const [data, types] = await Promise.all([api('GET', 'api/v1/instructions'), api('GET', 'api/v1/task-types')]);
+  instrData = data; typesCanAdd = types.can_add; $('instr-off').hidden = data.can_add;
+  fill('g-itypes', 'n-itypes', types.task_types.filter(t => t.source !== 'user'), typeCard, 'No task types.');
+  fill('g-iprompts', 'n-iprompts', data.prompts, p => instrCard(p.name, p.per_type ? 'per task type' : 'every task', p.content, p.source,
+    () => openInstr({title: p.path, path: p.path, content: p.content, source: p.source, clonable: p.per_type,
+                     note: p.per_type ? '' : 'Applies to every task, whatever its type: operators change it in <system dir>/prompts/.'})), 'No prompts.');
+  fill('g-itools', 'n-itools', data.core_tools, t => instrCard(t.name, t.summary, null, t.source,
+    () => openInstr({title: t.path, path: t.path, content: t.content, source: t.source, clonable: true})), 'No core tools.');
+}
+function instrCard(name, sub, content, source, open) {
+  const c = el('button', 'card');
+  c.append(el('div', 'name', name), el('div', 'sub', content ? firstLine(content) : sub));
+  const meta = el('div', 'meta');
+  if (content) meta.append(el('span', 'chip' + (sub === 'every task' ? ' lock' : ''), sub));
+  meta.append(el('span', 'chip', source.split(':')[0]));
+  c.append(meta); c.onclick = open;
+  return c;
+}
+function firstLine(text) {
+  const line = text.split('\n').map(l => l.replace(/^#+\s*/, '').trim()).find(l => l && l !== '---') || '';
+  return line.length > 110 ? line.slice(0, 109) + '…' : line;
+}
+let instr = null;   // {title, path, content, source, clonable, type: one of yours being edited, or null, note}
+function instrNote(i) {
+  if (i.note) return i.note;
+  if (i.path.startsWith('core-tools/')) return 'Keep the front matter (between the --- lines) as it is: the arguments are read by code. Change the description below it.';
+  if (i.path.startsWith('prompts/')) return '${…} placeholders are filled in by the runtime; keep them, and the JSON a prompt asks for.';
+  return '';
+}
+function openInstr(i) {
+  instr = i;
+  $('instr-title').textContent = i.title; $('instr-src').textContent = i.type ? 'yours' : i.source;
+  $('instr-note').textContent = instrNote(i); $('instr-note').hidden = !$('instr-note').textContent;
+  $('instr-file').textContent = i.path; $('instr-err').textContent = '';
+  const area = $('instr-text'); area.value = i.content; area.readOnly = !i.type;
+  $('instr-target').hidden = true;
+  $('instr-save').hidden = $('instr-remove').hidden = !i.type;
+  $('instr-clone').hidden = !(i.clonable && typesCanAdd && instrData?.can_add !== false);
+  $('instr-dlg').showModal();
+}
+$('instr-clone').onclick = async () => {
+  // Pick one of your types, or name a new one; the copy is saved there.
+  let types = [];
+  try { types = (await api('GET', 'api/v1/task-types')).task_types.filter(t => t.editable); }
+  catch (e) { $('instr-err').textContent = e.message; return; }
+  const sel = $('instr-type'); sel.textContent = '';
+  for (const t of types) {
+    const o = el('option', '', t.name + (t.files.includes(instr.path) ? ` (replaces its ${instr.path})` : '')); o.value = t.name; sel.append(o);
+  }
+  const fresh = el('option', '', 'New task type…'); fresh.value = ''; sel.append(fresh);
+  sel.value = types.length ? types[0].name : '';
+  sel.onchange = () => { $('instr-new-row').hidden = !!sel.value; }; sel.onchange();
+  $('instr-new').value = '';
+  $('instr-target').hidden = false; $('instr-text').readOnly = false; $('instr-text').focus();
+  $('instr-clone').hidden = true; $('instr-save').hidden = false; $('instr-src').textContent = 'copy of ' + instr.source;
+};
+$('instr-save').onclick = async () => {
+  const name = instr.type || $('instr-type').value || $('instr-new').value.trim();
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) { $('instr-err').textContent = 'Type name: lowercase letters, digits and single dashes'; return; }
+  try {
+    await api('PUT', `api/v1/task-types/${encodeURIComponent(name)}/files/${instr.path}`, {content: $('instr-text').value});
+    $('instr-dlg').close(); toast(`Saved ${instr.path} in ${name}`);
+  } catch (e) { $('instr-err').textContent = e.message; }
+};
+$('instr-remove').onclick = async () => {
+  if (!instr.type || !confirm(`Remove ${instr.path} from ${instr.type}? Its tasks then use the system's.`)) return;
+  try {
+    await api('DELETE', `api/v1/task-types/${encodeURIComponent(instr.type)}/files/${instr.path}`);
+    $('instr-dlg').close(); toast('Removed'); if (!$('view-types').hidden) loadTypes();
+  } catch (e) { $('instr-err').textContent = e.message; }
 };
 
 // ------------------------------------------------------------------------------------- models
@@ -832,32 +1227,46 @@ function renderSuggestions(s) {
 const STATUS = {ok: 'ok', error: 'bad', disabled: 'off', pending: 'warn'};
 let plugins = [];
 async function loadPlugins() {
-  const data = await api('GET', 'api/v1/plugins');
+  const [data, used, skills] = await Promise.all([api('GET', 'api/v1/plugins'), api('GET', 'api/v1/tools'),
+                                                 api('GET', 'api/v1/skills').then(r => r.skills).catch(() => [])]);
   plugins = data.plugins;
   $('reload-plugins').hidden = !data.can_reload;
-  const has = k => plugins.filter(p => p.kinds.includes(k));
-  fill('g-ptypes', 'n-ptypes', has('task_types'), p => pluginCard(p, 'task_types'), 'No plugin provides task types.');
-  fill('g-ptools', 'n-ptools', has('tools'), p => pluginCard(p, 'tools'), 'No plugin provides tools.');
-  fill('g-pmcp', 'n-pmcp', has('mcp'), p => pluginCard(p, 'mcp'), 'No plugin provides MCP servers.');
-  const other = plugins.filter(p => !p.kinds.length);
-  $('s-pother').hidden = !other.length;
-  fill('g-pother', 'n-pother', other, p => pluginCard(p, null), '');
+  const box = $('g-plugins'); box.textContent = ''; $('n-plugins').textContent = plugins.length ? String(plugins.length) : '';
+  if (!plugins.length) { box.append(el('div', 'empty', 'No plugins are installed.')); return; }
+  const order = p => (p.source === 'user' ? 1 : 0) + (p.kinds.length ? 0 : 2);   // system, yours, then empty or broken
+  for (const p of [...plugins].sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name))) box.append(pluginGroup(p, used, skills));
 }
-function pluginCard(p, kind) {
-  const c = el('button', 'card');
-  const name = el('div', 'name', p.name);
-  if (p.source === 'user') name.append(el('span', 'chip own', 'yours'));
-  if (p.version) name.append(el('span', 'chip', 'v' + p.version));
-  c.append(name, el('div', 'sub', p.description || (p.source === 'user' ? 'your plugin' : 'system plugin')));
-  const meta = el('div', 'meta');
-  if (!p.enabled) meta.append(el('span', 'chip off', 'disabled'));
-  if (kind === 'task_types') p.task_types.forEach(t => meta.append(el('span', 'chip', t.name)));
-  if (kind === 'tools') meta.append(el('span', 'chip', p.tools.length + (p.tools.length === 1 ? ' tool' : ' tools')));
-  if (kind === 'mcp') p.mcp_endpoints.forEach(s => meta.append(el('span', 'chip ' + (STATUS[s.status] || ''),
-    `${s.name} · ${s.status === 'ok' ? s.tools.length + ' tools' : s.status}`)));
-  if (p.errors.length) meta.append(el('span', 'chip warn', p.errors.length + (p.errors.length === 1 ? ' problem' : ' problems')));
-  c.append(meta);
-  c.onclick = () => openPlugin(p);
+function pluginGroup(p, used, skills) {
+  // Its tools (its own and its MCP endpoints') and skills, as the Tools and Skills tabs switch them.
+  const provider = used.groups.find(g => g.target === 'plugin' && g.id === p.id);
+  const mine = used.tools.filter(t => t.plugin === p.id && t.switchable).map(t => ({name: t.name, mode: t.mode}));
+  const modes = Object.fromEntries(skills.map(k => [k.tool, k.mode]));
+  const items = [...mine, ...(p.skills || []).filter(k => k.tool in modes).map(k => ({name: k.tool, mode: modes[k.tool]}))];
+  const parts = [
+    ['Tools', p.tools.map(t => t.name)],
+    ['Task types', p.task_types.map(t => t.name)],
+    ['MCP endpoints', p.mcp_endpoints.map(e => `${e.name} · ${e.status === 'ok' ? plural(e.tools.length, 'tool') : e.status}`)],
+    ['Skills', (p.skills || []).map(k => k.name)],
+  ].filter(([, names]) => names.length);
+  const body = itemList(parts, ([kind, names]) => {
+    const li = el('li'), row = el('div', 'row'); row.append(el('b', '', kind));
+    names.forEach(n => row.append(el('span', 'chip', n))); li.append(row); return li;
+  });
+  if (p.errors.length) body.append(el('li', 'e', plural(p.errors.length, 'problem') + ': ' + p.errors[0]));
+  if (!parts.length && !p.errors.length) body.append(el('li', 'd', 'Provides nothing.'));
+  const details = el('li', 'click'); details.append(el('span', 'd', 'Details: who may use it, each tool, its endpoints →'));
+  details.onclick = () => openPlugin(p); body.append(details);
+  return groupBox({key: 'plugin:' + p.id, title: p.name, desc: p.description, body, off: !p.enabled || (provider && provider.mode === 'off'),
+    chips: [el('span', 'chip' + (p.source === 'user' ? ' own' : ''), p.source === 'user' ? 'yours' : 'system'),
+            p.version && el('span', 'chip', 'v' + p.version), !p.enabled && el('span', 'chip off', 'disabled'),
+            p.errors.length && el('span', 'chip warn', plural(p.errors.length, 'problem')), envChip(p.environment)],
+    sw: provider || items.length ? groupSwitch(provider, items, loadPlugins) : null});
+}
+// The setup its command tools run in (plugin.yaml `environment`): sourced on first use, then every `refresh` s
+function envChip(env) {
+  if (!env || !env.state) return null;
+  const c = el('span', 'chip' + (env.state === 'failed' ? ' warn' : ''), 'environment ' + env.state);
+  c.title = env.state === 'failed' ? env.error : env.state === 'ok' ? `Sourced ${env.seconds_ago} s ago; again every ${env.refresh} s` : 'Sourced when a tool first runs';
   return c;
 }
 function section(title, items, render) {
@@ -909,6 +1318,9 @@ function openPlugin(p) {
     }),
     section('Skills', p.skills || [], k => { const li = el('li'), row = el('div', 'row'); row.append(el('code', '', k.name), el('span', 'chip', k.tool)); li.append(row, el('span', 'd', k.description)); return li; }),
     section('Builtin handlers', p.handlers, h => { const li = el('li'); li.append(el('code', '', h)); return li; }),
+    p.environment && p.environment.state ? section('Environment', [p.environment], e => {
+      const li = el('li'), row = el('div', 'row'); row.append(envChip(e), el('span', 'd', `sourced again every ${e.refresh} s`));
+      li.append(row); if (e.error) li.append(el('span', 'e', e.error)); return li; }) : null,
     section('Problems', p.errors, e => el('li', 'e', e)),
   ];
   blocks.forEach(b => b && parts.append(b));
@@ -926,59 +1338,89 @@ $('reload-plugins').onclick = async () => {
 let tools = {tools: [], groups: []};
 async function loadTools() {
   tools = await api('GET', 'api/v1/tools');
-  const box = $('g-tgroups'); box.textContent = ''; $('n-tgroups').textContent = tools.groups.length ? String(tools.groups.length) : '';
-  if (!tools.groups.length) box.append(el('div', 'empty', 'No plugin or MCP endpoint provides tools you can use.'));
-  else {
-    const ul = el('ul', 'items wide');
-    for (const g of tools.groups) {
-      const li = el('li', g.enabled ? '' : 'off'), r = el('div', 'row split'), l = el('span', 'row');
-      l.append(el('b', '', g.name), el('span', 'chip', g.target === 'mcp' ? 'MCP endpoint' : 'plugin'),
-               el('span', 'chip', g.tools + (g.tools === 1 ? ' tool' : ' tools')));
-      if (g.mine) l.append(el('span', 'chip own', 'yours'));
-      if (g.plugin) l.append(el('span', 'chip', 'from ' + groupName('plugin', g.plugin)));
-      r.append(l, toggle(g.enabled, `Use the tools of this ${g.target === 'mcp' ? 'endpoint' : 'plugin'} in your tasks`,
-                         on => setToolPref(g.target, g.id, on), loadTools));
-      li.append(r); ul.append(li);
-    }
-    box.append(ul);
-  }
   renderToolList();
 }
-const setToolPref = (target, id, enabled) => api('PUT', 'api/v1/tools/prefs', {target, id, enabled});
+const setToolPref = (target, id, mode) => api('PUT', 'api/v1/tools/prefs', {target, id, mode});
 const groupName = (target, id) => (tools.groups.find(g => g.target === target && g.id === id) || {}).name || id;
 function toolSource(t) {
   if (t.kind === 'mcp') return 'MCP ' + groupName('mcp', t.endpoint);
   if (t.kind === 'plugin') return 'plugin ' + groupName('plugin', t.plugin);
   return {control: 'agent', core: 'agent', system: 'system', database: t.mine ? 'yours' : 'shared'}[t.kind] || t.kind;
 }
+// Where each tool comes from: the agent itself, the system, each plugin, each MCP endpoint, people.
+function toolGroups(list) {
+  const groups = new Map();
+  const add = (key, make, t) => { if (!groups.has(key)) groups.set(key, {key, ...make(), tools: []}); groups.get(key).tools.push(t); };
+  for (const t of list) {
+    if (t.kind === 'control' || t.kind === 'core') add('core', () => ({title: 'Core tools', desc: 'the agent’s own', rank: 0}), t);
+    else if (t.kind === 'system') add('system', () => ({title: 'System tools', desc: 'installed by operators', rank: 1}), t);
+    else if (t.kind === 'plugin') add('plugin:' + t.plugin, () => ({title: groupName('plugin', t.plugin), kind: 'plugin', target: 'plugin', id: t.plugin, rank: 2}), t);
+    else if (t.kind === 'mcp') add('mcp:' + t.endpoint, () => ({title: groupName('mcp', t.endpoint), kind: 'MCP endpoint', target: 'mcp', id: t.endpoint, plugin: t.plugin, rank: 3}), t);
+    else if (t.mine) add('mine', () => ({title: 'Mine', desc: 'tools you added', rank: 5}), t);
+    else add('shared', () => ({title: 'Shared with me', desc: 'added by others', rank: 4}), t);
+  }
+  return [...groups.values()].sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title));
+}
 function renderToolList() {
   const q = $('tools-filter').value.trim().toLowerCase(), k = $('tools-kind').value;
-  const shown = tools.tools.filter(t => (!k || (k === 'off' ? !t.active : k === 'builtin' ? ['control', 'core', 'system'].includes(t.kind) : t.kind === k))
-                                        && (!q || [t.name, toolSource(t), t.summary].join(' ').toLowerCase().includes(q)));
+  const match = t => (!k || (k === 'off' ? !t.active : k === 'ask' ? t.active && t.asks : t.active)) && (!q || [t.name, toolSource(t), t.summary].join(' ').toLowerCase().includes(q));
   $('n-tools').textContent = tools.tools.length ? String(tools.tools.length) : '';
   const box = $('g-tools'); box.textContent = '';
-  if (!shown.length) { box.append(el('div', 'empty', tools.tools.length ? 'No tool matches.' : 'No tools.')); return; }
-  const ul = el('ul', 'items wide');
-  for (const t of shown) {
-    const li = el('li', t.active ? '' : 'off'), r = el('div', 'row split'), l = el('span', 'row');
-    l.append(el('code', '', t.name), el('span', 'chip' + (t.mine ? ' own' : ''), toolSource(t)),
-             el('span', 'chip', 'effects ' + t.effects), el('span', 'chip', 'approval ' + t.approval));
-    if (t.enabled && !t.active) l.append(el('span', 'chip off', 'off with its ' + (t.endpoint && !tools.groups.find(g => g.target === 'mcp' && g.id === t.endpoint).enabled ? 'endpoint' : 'plugin')));
-    let right;
-    if (t.switchable) {
-      right = toggle(t.enabled, 'Use this tool in your tasks', on => setToolPref('tool', t.name, on), loadTools);
-      if (t.enabled && !t.active) right.querySelector('input').disabled = true;
-    } else right = el('span', 'chip lock', 'always on');
-    r.append(l, right); li.append(r, el('span', 'd', t.summary)); ul.append(li);
+  const groups = toolGroups(tools.tools).filter(g => g.tools.some(match));
+  if (!groups.length) { box.append(el('div', 'empty', tools.tools.length ? 'No tool matches.' : 'No tools.')); return; }
+  for (const g of groups) {
+    const provider = g.target ? tools.groups.find(x => x.target === g.target && x.id === g.id) : null;
+    const shown = g.tools.filter(match), off = g.tools.filter(t => !t.active).length, asks = g.tools.filter(t => t.active && t.asks).length;
+    const items = g.tools.filter(t => t.switchable).map(t => ({name: t.name, mode: t.mode}));
+    box.append(groupBox({key: 'tools:' + g.key, title: g.title, desc: g.desc, off: provider ? provider.mode === 'off' : !g.tools.some(t => t.active),
+      chips: [g.kind && el('span', 'chip', g.kind), g.plugin && el('span', 'chip', 'from plugin ' + groupName('plugin', g.plugin)),
+              provider && provider.mine && el('span', 'chip own', 'yours'),
+              el('span', 'chip', shown.length < g.tools.length ? `${shown.length} of ${g.tools.length} tools` : plural(g.tools.length, 'tool')),
+              asks && el('span', 'chip warn', asks + ' ask first'), off && el('span', 'chip off', off + ' off')],
+      sw: groupSwitch(provider, items, loadTools), body: itemList(shown, toolRow)}));
   }
-  box.append(ul);
+}
+function toolRow(t) {
+  const li = el('li', t.active ? '' : 'off'), r = el('div', 'row split'), l = el('span', 'row');
+  l.append(el('code', '', t.name), el('span', 'chip', 'effects ' + t.effects), el('span', 'chip', 'approval ' + t.approval), timeoutChip(t));
+  if (t.kind === 'control') l.append(el('span', 'chip', 'control'));
+  if (t.findability) { const c = el('span', 'chip warn', 'hard to find'); c.title = `Tasks may not be offered this tool: ${t.findability}. Its summary, tags and description are what selection matches.`; l.append(c); }
+  // switched by its plugin or endpoint rather than by its own switch
+  const via = mode => t.endpoint && (tools.groups.find(g => g.target === 'mcp' && g.id === t.endpoint) || {}).mode === mode ? 'endpoint' : 'plugin';
+  if (t.enabled && !t.active) l.append(el('span', 'chip off', 'off with its ' + via('off')));
+  else if (t.mode === 'on' && t.asks) l.append(el('span', 'chip warn', 'asks first with its ' + via('ask')));
+  let right;
+  if (t.switchable) {
+    right = modeSelect(t.mode, 'How your tasks use this tool: ask first makes each call wait for your approval',
+                       mode => setToolPref('tool', t.name, mode), loadTools);
+    if (t.enabled && !t.active) right.querySelector('select').disabled = true;
+  } else right = el('span', 'chip lock', 'always on');
+  r.append(l, right); li.append(r, el('span', 'd', t.summary));
+  return li;
+}
+// How long a call may run; admins change it for everyone (empty: back to the tool's own)
+function timeoutChip(t) {
+  const changed = t.timeout !== t.timeout_default;
+  const label = `timeout ${+t.timeout.toFixed(1)} s${changed ? ' (set)' : ''}`;
+  if (!tools.can_set_timeouts) return el('span', 'chip' + (changed ? ' own' : ''), label);
+  const b = el('button', 'chip' + (changed ? ' own' : ''), label);
+  b.title = `How long a call may run (the tool's own: ${t.timeout_default} s). Click to change it for everyone.`;
+  b.onclick = async () => {
+    const v = prompt(`Timeout of ${t.name} in seconds, 1–3600 (empty: the tool's own, ${t.timeout_default} s)`, changed ? String(t.timeout) : '');
+    if (v === null) return;
+    const timeout = v.trim() === '' ? null : Number(v);
+    if (timeout !== null && !(timeout >= 1 && timeout <= 3600)) { toast('A timeout is 1 to 3600 seconds'); return; }
+    try { await api('PUT', 'api/v1/tools/timeout', {name: t.name, timeout}); await loadTools(); } catch (e) { toast(e.message); }
+  };
+  return b;
 }
 $('tools-filter').oninput = renderToolList; $('tools-kind').onchange = renderToolList;
 
 // ------------------------------------------------------------------------------------- MCP
-let endpoints = {endpoints: [], can_add: false}, mcpTools = [];
+let endpoints = {endpoints: [], can_add: false}, mcpTools = [], mcpUse = {tools: [], groups: []};
 async function loadMcp() {
-  [endpoints, mcpTools] = await Promise.all([api('GET', 'api/v1/mcp/endpoints'), api('GET', 'api/v1/mcp/tools').then(r => r.tools)]);
+  [endpoints, mcpTools, mcpUse] = await Promise.all([api('GET', 'api/v1/mcp/endpoints'), api('GET', 'api/v1/mcp/tools').then(r => r.tools),
+                                                     api('GET', 'api/v1/tools')]);
   $('new-endpoint').disabled = !endpoints.can_add;
   const by = g => endpoints.endpoints.filter(e => e.group === g);
   fill('g-eplugin', 'n-eplugin', by('plugin'), endpointCard, 'No plugin installs an MCP endpoint.');
@@ -1006,17 +1448,30 @@ function renderTools() {
   $('n-mtools').textContent = mcpTools.length ? String(mcpTools.length) : '';
   const box = $('g-mtools'); box.textContent = '';
   if (!shown.length) { box.append(el('div', 'empty', mcpTools.length ? 'No tool matches.' : 'No MCP tools yet.')); return; }
-  const ul = el('ul', 'items wide');
-  for (const t of shown) {
-    const li = el('li', 'click'), row = el('div', 'row');
-    row.append(el('code', '', t.model_name), el('span', 'chip', t.endpoint), el('span', 'chip' + (t.group === 'mine' ? ' own' : ''), {plugin: 'plugin', shared: 'shared', mine: 'yours'}[t.group]),
-               el('span', 'chip', 'effects ' + t.effects), el('span', 'chip', 'approval ' + t.approval), el('span', 'chip', accessText(t.access, t.visibility)));
-    if (!t.enabled || t.endpoint_enabled === false) row.append(el('span', 'chip off', 'disabled'));
-    li.append(row, el('span', 'd', t.summary));
-    li.onclick = () => openTool(t);
-    ul.append(li);
+  const by = new Map();
+  for (const t of shown) { if (!by.has(t.endpoint)) by.set(t.endpoint, []); by.get(t.endpoint).push(t); }
+  const rank = {plugin: 0, shared: 1, mine: 2};
+  const keys = [...by.keys()].sort((a, b) => rank[by.get(a)[0].group] - rank[by.get(b)[0].group] || a.localeCompare(b));
+  for (const id of keys) {
+    const list = by.get(id), e = endpoints.endpoints.find(x => x.id === id) || {}, all = mcpTools.filter(t => t.endpoint === id);
+    // what the switch acts on: your use of the endpoint's tools (as on the Tools tab), not the tools themselves
+    const provider = mcpUse.groups.find(g => g.target === 'mcp' && g.id === id);
+    const items = mcpUse.tools.filter(t => t.endpoint === id && t.switchable).map(t => ({name: t.name, mode: t.mode}));
+    const body = itemList(list, t => {
+      const li = el('li', 'click'), row = el('div', 'row');
+      row.append(el('code', '', t.model_name), el('span', 'chip', 'effects ' + t.effects), el('span', 'chip', 'approval ' + t.approval),
+                 el('span', 'chip', accessText(t.access, t.visibility)));
+      if (!t.enabled || t.endpoint_enabled === false) row.append(el('span', 'chip off', 'disabled'));
+      li.append(row, el('span', 'd', t.summary)); li.onclick = () => openTool(t); return li;
+    });
+    const g = list[0].group;
+    box.append(groupBox({key: 'mcp:' + id, title: e.label || e.name || id, desc: e.target || '', body,
+      off: (provider && provider.mode === 'off') || e.enabled === false,
+      chips: [el('span', 'chip' + (g === 'mine' ? ' own' : ''), g === 'plugin' ? 'plugin ' + (e.plugin || '') : {shared: 'shared', mine: 'yours'}[g]),
+              e.status && e.status !== 'ok' && el('span', 'chip ' + (STATUS[e.status] || ''), e.status),
+              el('span', 'chip', list.length < all.length ? `${list.length} of ${all.length} tools` : plural(all.length, 'tool'))],
+      sw: provider ? groupSwitch(provider, items, loadMcp) : null}));
   }
-  box.append(ul);
 }
 $('tool-filter').oninput = renderTools; $('tool-group').onchange = renderTools;
 
@@ -1264,15 +1719,116 @@ $('kservice-delete').onclick = async () => {
   catch (x) { $('kservice-err').textContent = x.message; }
 };
 
+// ------------------------------------------------------------------------------------- code
+let code = {repos: []}, codeTimer = null;
+async function loadCode() {
+  code = await api('GET', 'api/v1/code/repos');
+  $('new-repo').disabled = !code.can_add;
+  const note = $('code-note');
+  note.hidden = code.can_add;
+  note.textContent = !code.enabled ? 'Code repositories are off on this agent: an operator sets [code] root in agent.cfg.'
+    : `Adding repositories needs the ${(code.scopes || []).join(', ')} permission; ask an administrator.`;
+  const by = g => code.repos.filter(r => r.group === g);
+  const list = (gridId, countId, items, emptyText) => {
+    const box = $(gridId); box.textContent = ''; $(countId).textContent = items.length ? String(items.length) : '';
+    if (!items.length) { box.append(el('div', 'empty', emptyText)); return; }
+    const ul = el('ul', 'items'); items.forEach(r => ul.append(repoItem(r))); box.append(ul);
+  };
+  list('g-rsystem', 'n-rsystem', by('system'), code.enabled ? 'No system repository ([code.repos] in agent.cfg).' : 'None.');
+  list('g-rshared', 'n-rshared', by('shared'), 'Nobody shares a repository with you.');
+  list('g-rmine', 'n-rmine', by('mine'), code.can_add ? 'You have not added a repository. “Add repository” clones one from its URL.' : 'None.');
+  clearTimeout(codeTimer);   // a clone in progress: look again shortly
+  if (code.repos.some(r => r.status === 'pending') && !$('view-code').hidden) codeTimer = setTimeout(() => loadCode().catch(() => {}), 5000);
+}
+function repoItem(r) {
+  const li = el('li'), row = el('div', 'row split'), left = el('span'), right = el('span', 'row');
+  left.append(el('b', '', r.name));
+  if (r.label) left.append(document.createTextNode(' ' + r.label));
+  const chips = el('div', 'row');
+  chips.append(el('span', 'chip ' + (STATUS[r.status] || ''), r.status === 'pending' ? 'cloning…' : r.status));
+  if (r.url) chips.append(el('span', 'chip', r.url));
+  else chips.append(el('span', 'chip', 'checked out by hand'));
+  if (r.branch) chips.append(el('span', 'chip', 'branch ' + r.branch));
+  if (r.group !== 'system') chips.append(el('span', 'chip', VIS[r.visibility] || r.visibility));
+  if (r.group === 'shared' && r.owner) chips.append(el('span', 'chip', 'by ' + r.owner));
+  if (r.synced_at) chips.append(el('span', 'chip', 'updated ' + new Date(r.synced_at).toLocaleString()));
+  if (r.editable) { const edit = el('button', 'btn sm', 'Edit'); edit.onclick = () => openRepo(r); right.append(edit); }
+  row.append(left, right); li.append(row, chips);
+  if (r.error) li.append(el('span', 'e', r.error));
+  return li;
+}
+let currentRepo = null;
+function normalizeRepoVisibility(v) {
+  const raw = String(v || '').trim().toLowerCase();
+  const base = raw.replace(/\s*\(.*\)\s*$/, '');
+  if (base === 'all' || base === 'everyone' || base === 'public') return 'all';
+  if (base === 'organization' || base === 'groups' || base === 'group' || base === 'org') return 'organization';
+  if (base === 'user' || base === 'private' || base === 'mine' || base === 'only me') return 'user';
+  return base || 'user';
+}
+function openRepo(r) {
+  currentRepo = r;
+  const f = $('repo-form'); f.reset(); $('repo-err').textContent = '';
+  for (const n of ['rname', 'url', 'branch']) f[n].disabled = !!r;
+  $('repo-title').textContent = r ? r.name : 'Add a repository';
+  $('repo-delete').hidden = $('repo-refresh').hidden = !r;
+  const hosts = (code.allowed_hosts || []).join(', ');
+  $('repo-note').textContent = (r ? 'To change the URL or branch, remove the repository and add it again. '
+                                   : 'A public git repository, cloned (shallow) on the agent and updated in the background. ')
+    + (hosts ? `Allowed hosts: ${hosts}.` : '');
+  if (r) { f.rname.value = r.name; f.label.value = r.label || ''; f.url.value = r.url; f.branch.value = r.branch || ''; f.visibility.value = normalizeRepoVisibility(r.visibility);
+           if (r.error) $('repo-err').textContent = r.error; }
+  $('repo-dlg').showModal();
+}
+$('new-repo').onclick = () => openRepo(null);
+$('repo-save').onclick = async () => {
+  const f = $('repo-form'); if (!f.reportValidity()) return;
+  const b = $('repo-save'); b.disabled = true; $('repo-err').textContent = '';
+  const visibility = normalizeRepoVisibility(f.visibility.value);
+  try {
+    if (currentRepo) await api('PATCH', 'api/v1/code/repos/' + encodeURIComponent(currentRepo.name), {label: f.label.value.trim(), visibility});
+    else await api('POST', 'api/v1/code/repos', {name: f.rname.value.trim(), url: f.url.value.trim(), branch: f.branch.value.trim(),
+                                                 label: f.label.value.trim(), visibility});
+    $('repo-dlg').close(); toast(currentRepo ? 'Saved' : 'Added: cloning in the background'); loadCode();
+  } catch (x) { $('repo-err').textContent = x.message; } finally { b.disabled = false; }
+};
+$('repo-refresh').onclick = async () => {
+  try { await api('POST', 'api/v1/code/repos/' + encodeURIComponent(currentRepo.name) + '/refresh'); $('repo-dlg').close(); toast('Updating in the background'); setTimeout(loadCode, 3000); }
+  catch (x) { $('repo-err').textContent = x.message; }
+};
+$('repo-delete').onclick = async () => {
+  if (!currentRepo || !confirm(`Remove repository ${currentRepo.name}? Its checkout on the agent is deleted.`)) return;
+  try { await api('DELETE', 'api/v1/code/repos/' + encodeURIComponent(currentRepo.name)); $('repo-dlg').close(); toast('Removed'); loadCode(); }
+  catch (x) { $('repo-err').textContent = x.message; }
+};
+
 // ------------------------------------------------------------------------------------- skills
 async function loadSkills() {
   const data = await api('GET', 'api/v1/skills');
   $('new-skill').disabled = !data.can_add;
-  const by = g => data.skills.filter(k => k.group === g);
-  fill('g-ksystem', 'n-ksystem', by('system'), skillCard, 'No system skills.');
-  fill('g-kplugin', 'n-kplugin', by('plugin'), skillCard, 'No plugin provides skills.');
-  fill('g-kshared', 'n-kshared', by('shared'), skillCard, 'Nobody shares a skill with you.');
-  fill('g-kmine', 'n-kmine', by('mine'), skillCard, data.can_add ? 'You have no skills yet. “New skill” writes one.' : 'You have no skills.');
+  const box = $('g-skills'); box.textContent = ''; $('n-skills').textContent = data.skills.length ? String(data.skills.length) : '';
+  // System, each plugin, shared with me, mine (always shown: where “New skill” puts one)
+  const groups = new Map([['system', {title: 'System', desc: 'installed by operators · read-only', skills: []}]]);
+  for (const k of data.skills) {
+    const key = k.group === 'plugin' ? 'plugin:' + k.plugin : k.group;
+    if (!groups.has(key)) groups.set(key, k.group === 'plugin' ? {title: k.plugin, kind: 'plugin', desc: 'read-only', skills: []}
+                                         : {title: k.group === 'mine' ? 'Mine' : 'Shared with me', desc: k.group === 'mine' ? '' : 'added by others · they ask before they load', skills: []});
+    groups.get(key).skills.push(k);
+  }
+  if (!groups.has('mine')) groups.set('mine', {title: 'Mine', desc: '', skills: []});
+  const rank = key => key === 'system' ? 0 : key.startsWith('plugin:') ? 1 : key === 'shared' ? 2 : 3;
+  for (const key of [...groups.keys()].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))) {
+    const g = groups.get(key);
+    if (!g.skills.length && key !== 'mine') continue;
+    const body = el('div', 'grid');
+    g.skills.forEach(k => body.append(skillCard(k)));
+    if (!g.skills.length) body.append(el('div', 'empty', data.can_add ? 'You have no skills yet. “New skill” writes one.' : 'You have no skills.'));
+    const off = g.skills.filter(k => !k.on).length, asks = g.skills.filter(k => k.mode === 'ask').length;
+    box.append(groupBox({key: 'skills:' + key, title: g.title, desc: g.desc, body, off: g.skills.length > 0 && off === g.skills.length,
+      chips: [g.kind && el('span', 'chip', g.kind), el('span', 'chip', plural(g.skills.length, 'skill')),
+              asks && el('span', 'chip warn', asks + ' ask first'), off && el('span', 'chip off', off + ' off')],
+      sw: g.skills.length ? groupSwitch(null, g.skills.map(k => ({name: k.tool, mode: k.mode})), loadSkills) : null}));
+  }
 }
 function skillCard(k) {
   const c = el('button', 'card'), name = el('div', 'name', k.qualified);
@@ -1285,19 +1841,22 @@ function skillCard(k) {
   if (k.group === 'mine' && !k.editable) meta.append(el('span', 'chip lock', 'file in your sandbox'));
   if (k.group === 'shared' && k.owner) meta.append(el('span', 'chip', 'by ' + k.owner));
   if (!k.enabled) meta.append(el('span', 'chip off', 'disabled'));
+  else if (!k.on) meta.append(el('span', 'chip off', 'off for you'));
+  else if (k.mode === 'ask') meta.append(el('span', 'chip warn', 'asks you first'));
   c.append(meta);
   c.onclick = () => openSkill(k);
   return c;
 }
 let currentSkill = null;
 async function openSkill(k) {
-  if (k) { try { k = await api('GET', 'api/v1/skills/' + encodeURIComponent(k.id)); } catch (x) { toast(x.message); return; } }
+  if (k) { try { k = {...await api('GET', 'api/v1/skills/' + encodeURIComponent(k.id)), on: k.on, mode: k.mode}; } catch (x) { toast(x.message); return; } }
   currentSkill = k;
   const editable = !k || k.editable, f = $('skill-form');
   f.hidden = !editable; $('skill-text-box').hidden = editable; $('skill-err').textContent = '';
   $('skill-title').textContent = k ? k.qualified : 'New skill';
   $('skill-src').textContent = !k ? 'yours' : ({system: 'system', plugin: 'plugin', shared: 'shared', mine: 'yours'})[k.group];
   $('skill-save').hidden = !editable; $('skill-delete').hidden = !(k && k.editable);
+  $('skill-use').hidden = !k; if (k) $('skill-mode').value = k.mode || 'on';
   const kv = $('skill-kv'); kv.textContent = '';
   const add = (key, v) => v && kv.append(el('dt', '', key), el('dd', '', v));
   if (k) {
@@ -1368,6 +1927,13 @@ $('skill-file-delete').onclick = async () => {
   } catch (x) { $('skill-err').textContent = x.message; }
 };
 $('new-skill').onclick = () => openSkill(null);
+$('skill-mode').onchange = async () => {
+  const k = currentSkill, mode = $('skill-mode').value;
+  try {
+    await api('PUT', 'api/v1/tools/prefs', {target: 'tool', id: k.tool, mode});
+    $('skill-dlg').close(); toast(MODE_SAID[mode]); loadSkills();
+  } catch (x) { $('skill-mode').value = k.mode || 'on'; $('skill-err').textContent = x.message; }
+};
 $('skill-save').onclick = async () => {
   const f = $('skill-form');
   if (!f.reportValidity()) return;

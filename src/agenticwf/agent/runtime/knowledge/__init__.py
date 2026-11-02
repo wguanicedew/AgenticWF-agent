@@ -9,8 +9,9 @@ the KB client, the catalogue the context shows, and the core tools `kb_search`, 
     mode = service                         # service: forward the task's user (X-KB-Principal)
                                            # bearer: a personal KB's token (token_file)
     token_file =
-    timeout = 20
-    research_timeout = 200                 # kb_research: the KB's agentic search (its limit is 180 s)
+    timeout = 20                           # a call without a tool's deadline; a tool's call ends just
+    research_timeout = 200                 # before the tool's timeout (Tools tab, else its own: 60 s,
+                                           # kb_research 210 s; the KB stops its agentic search at 180 s)
     max_catalog = 20                       # KBs listed in the prompt; kb_search covers all anyway
     memory = false                         # true: long-term memory is the KB's temporal memory (KBMemoryStore)
     memory_group = agent                   # its group_id there
@@ -180,8 +181,9 @@ class KnowledgeClient:
         with httpx.Client(transport=self._transport, timeout=self.settings.timeout) as client:
             return self._data(client.delete(self._url(path), headers=self._headers(auth)))
 
-    async def aget(self, auth: AuthContext, path: str, **params) -> Any:
-        async with httpx.AsyncClient(transport=self._async_transport, timeout=self.settings.timeout) as client:
+    async def aget(self, auth: AuthContext, path: str, timeout: float | None = None, **params) -> Any:
+        async with httpx.AsyncClient(transport=self._async_transport,
+                                     timeout=timeout or self.settings.timeout) as client:
             return self._data(await client.get(self._url(path), params=params, headers=self._headers(auth)))
 
     async def apost(self, auth: AuthContext, path: str, body: dict, timeout: float | None = None) -> Any:
@@ -483,7 +485,8 @@ class HttpKnowledgeCatalog:
 
         async def one(source: KnowledgeSource, refs: list[str]):
             payload = dict(body, knowledge_base_ids=refs) if refs else dict(body)
-            return (await source.client.apost(call.auth, path, payload, timeout=timeout))["data"]
+            return (await source.client.apost(call.auth, path, payload,
+                                              timeout=_within(call, timeout or source.client.settings.timeout)))["data"]
 
         answers = await asyncio.gather(*(one(s, refs) for s, refs in plan), return_exceptions=True)
         results, errors = [], []
@@ -544,18 +547,29 @@ class HttpKnowledgeCatalog:
 
 
 # --- the core tools --------------------------------------------------------------------------------
-def _spec(name: str, tags: tuple[str, ...]) -> ToolSpec:
+def _within(call: CallContext, fallback: float) -> float:
+    """An HTTP call's timeout: it ends a little before the tool's (an admin's on the Tools tab, else
+    the tool's own), so the model gets the KB's error rather than a call that may still be running."""
+    if not call.deadline:
+        return fallback
+    remaining = call.deadline - time.time()
+    return max(1.0, remaining - min(10.0, remaining / 10))
+
+
+def _spec(name: str, tags: tuple[str, ...], timeout: float = 60.0) -> ToolSpec:
     summary, description, schema = core_tool_text(name)
     return ToolSpec(name=name, summary=summary, description=description, input_schema=schema,
                     handler=HandlerRef(HandlerKind.BUILTIN, {"ref": f"knowledge.{name}"}),
                     source=ToolSource("core", f"core-tools/{name}.md"), effects=Effects.NONE,
-                    approval=Approval.AUTO, idempotent=True, parallel_safe=True, tags=tags)
+                    approval=Approval.AUTO, idempotent=True, parallel_safe=True, tags=tags, timeout=timeout)
 
 
 KB_SEARCH = _spec("kb_search", ("knowledge", "documents", "search", "docs", "manual", "kb"))
 KB_READ = _spec("kb_read", ("knowledge", "documents", "read", "kb"))
 KB_GREP = _spec("kb_grep", ("knowledge", "documents", "grep", "exact", "error code", "kb"))
-KB_RESEARCH = _spec("kb_research", ("knowledge", "documents", "research", "kb"))
+# longer than the KB's own limit (it stops its search at 180 s), so a slow search ends with what the
+# KB found; an admin changes it on the Tools tab, and the HTTP call follows (_within)
+KB_RESEARCH = _spec("kb_research", ("knowledge", "documents", "research", "kb"), timeout=210.0)
 
 
 def _attr(value) -> str:
@@ -622,6 +636,7 @@ def kb_read_handler(catalog: HttpKnowledgeCatalog) -> Handler:
             return _unavailable("kb_read", [])
         try:
             page = (await source.client.aget(call.auth, f"/knowledge/{knowledge_id}/content",
+                                             timeout=_within(call, source.client.settings.timeout),
                                              offset=int(arguments.get("offset") or 0),
                                              limit=int(arguments.get("limit") or 8000)))["data"]
         except (KnowledgeError, *UNAVAILABLE) as exc:

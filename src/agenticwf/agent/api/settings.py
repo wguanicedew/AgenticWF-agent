@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from agenticwf.auth.config import read_secret
 
 TRUE = {"1", "true", "yes", "on"}
+# Public in both modes: how clients sign in (app.py; the personal agent's own in local.py).
+WELL_KNOWN = "/.well-known/agenticwf"
 
 
 def _env(name: str, default: str) -> str:

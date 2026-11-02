@@ -80,17 +80,25 @@ class Task:
     source: str = "web"                 # the intent's source: web | cli | api | cron (policy rules may match it)
     tool_globs: tuple[str, ...] | None = None    # only these tools besides the control tools (a cron check's)
     skill_names: tuple[str, ...] | None = None   # only these skills
+    invoked_skill: dict | None = None   # `/<skill> …` in the request: {"id", "purpose"}, loaded at each turn's start
+    tool_picks: tuple | None = None     # (what for, names): the tools a model picked for a turn ([tools] select_model_above)
     unattended: str | None = None       # nobody to ask: an `ask` becomes a proposal (propose) or a denial (deny)
     proposals: list[dict] = field(default_factory=list)   # calls proposed instead of asked (unattended: propose)
     cron: dict | None = None            # a cron check: its settings, and what it reported (agenticwf.agent.runtime.cron)
     # the long-term memories recalled at its start ({"id", "text"}), for the chat page; a default, not a
     # factory, so tasks saved before it existed load with none
     recalled: tuple[dict, ...] = ()
+    # how its plan came about, for the trace view (defaults, so older tasks load): "" = no planning
+    # step, the request is the one turn; planner; planner (no usable plan: one turn)
+    planned_by: str = ""
+    model_plan: tuple[dict, ...] = ()   # the steps the model last recorded with update_plan
+    model_phase: str = ""
     # Model routing (docs/model-routing.md)
     pinned: bool = False                # its model was chosen (message, thread, task type, cron): not routed
     min_tier: str | None = None         # at least this tier (the task type's or cron's; raised by escalation)
     model_id: str | None = None         # the model it has used so far: kept while it fits (its prompt cache)
     escalations: int = 0
+    escalation_log: tuple[dict, ...] = ()   # {"tier", "evidence", "model"} per escalation, for the trace view
     cost: float = 0.0                   # in the deployment's cost unit
     cached_hint: int = 0                # the last step's input tokens: what the current model likely has cached
     invalid_streak: int = 0             # tool calls in a row the model got wrong (escalation evidence)

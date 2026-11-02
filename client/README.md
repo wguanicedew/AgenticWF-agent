@@ -11,26 +11,28 @@ agenticwf agent task "summarise run 42" --wait    # a background task
 agenticwf agent approve CALL --session SID        # a tool call that waits for you
 ```
 
-Behind the AgenticWF server (Caddy, Logto) the commands sign in with `agenticwf login`; set the
-connection once (an administrator gets the values with
-`docker exec agenticwf cat /var/lib/agenticwf/logto/clients.env`):
+Only the agent's URL is needed: the agent tells how to sign in, and behind the AgenticWF server
+(Caddy, Logto) the server publishes the Logto settings. Sign in once with `agenticwf login`:
 
 ```bash
-export AGENTICWF_AUTH_URL=https://host.example.org
-export AGENTICWF_API_URL=https://host.example.org/app
-export AGENTICWF_CLIENT_ID=<Logto native app id>
-export AGENTICWF_RESOURCE=<API resource indicator>
+export AGENTICWF_AGENT_URL=https://host.example.org/app
 agenticwf login
 ```
 
 Scripts and CI use a personal access token instead (`AGENTICWF_TOKEN=pat_…`), or a machine
-client (`AGENTICWF_CLIENT_ID` + `AGENTICWF_CLIENT_SECRET`).
+client (`AGENTICWF_CLIENT_ID` + `AGENTICWF_CLIENT_SECRET`). `AGENTICWF_AUTH_URL`,
+`AGENTICWF_API_URL`, `AGENTICWF_CLIENT_ID` and `AGENTICWF_RESOURCE`, when set, take precedence
+over what the server publishes (an administrator gets them with
+`docker exec agenticwf cat /var/lib/agenticwf/logto/clients.env`).
 
-The personal agent (`agenticwf-agent serve`) has its own token instead:
+The personal agent (`agenticwf-agent serve`) has its own token instead. On the same machine the
+URL is enough (the token is read from `~/.agenticwf-agent/token`, or `$AGENTICWF_AGENT_HOME`);
+otherwise use the sign-in link it printed as the URL, or give the token:
 
 ```bash
 export AGENTICWF_AGENT_URL=http://127.0.0.1:8765
-export AGENTICWF_AGENT_TOKEN_FILE=~/.agenticwf-agent/token
+export AGENTICWF_AGENT_URL='http://127.0.0.1:8765/?token=…'   # or: the sign-in link
+export AGENTICWF_AGENT_TOKEN=…                                # or: the token (or _TOKEN_FILE)
 ```
 
 From Python (`AgentClient.from_env()` finds the agent and its token as the command does):

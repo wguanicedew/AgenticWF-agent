@@ -18,6 +18,7 @@ from agenticwf.agent.runtime.skills.catalog import SkillCatalog
 from agenticwf.agent.runtime.skills.db_store import DatabaseSkillStore
 from agenticwf.agent.runtime.skills.skill import Skill, SkillError
 from agenticwf.agent.runtime.tools.dispatcher import ToolDispatcher
+from agenticwf.agent.runtime.tools.prefs import InMemoryToolPrefs
 from agenticwf.agent.runtime.tools.registry import ToolRegistry
 from agenticwf.agent.runtime.tools.spec import ToolResult, ToolSpec
 from agenticwf.agent.runtime.types import RuntimeState
@@ -175,6 +176,16 @@ def test_one_skill_at_a_time(world):
     assert not results["c1"].is_error and results["c2"].error_code == "one_skill_at_a_time"
 
 
+def test_a_skill_switched_off_is_not_offered_to_its_persons_tasks(world):
+    system, plugin_manager, catalog = world
+    prefs = InMemoryToolPrefs()
+    h = build(system, catalog, plugin_manager, [], prefs=prefs)
+    prefs.set_enabled(ALICE, "tool:skill__release_notes", False)
+    dispatcher = h.services.tool_dispatcher
+    assert "skill__release_notes" not in dispatcher.eligible(h.create_task(person(ALICE), "notes"))
+    assert "skill__release_notes" in dispatcher.eligible(h.create_task(person(BOB), "notes"))   # Alice's switch only
+
+
 def test_a_skill_without_tools_keeps_the_task_tools_matched_to_it(world):
     system, plugin_manager, catalog = world
     h = build(system, catalog, plugin_manager, [LLMResponse("", [ToolCallRequest("c1", "skill__my_notes", {})]),
@@ -258,6 +269,11 @@ def test_people_add_share_and_remove_skills(as_user):
     changed = a.patch("/api/v1/skills/weekly-report", json={"visibility": "user", "description": "Weekly."}).json()
     assert changed["visibility"] == "user" and changed["description"] == "Weekly."
     assert skill["id"] not in {k["id"] for k in b.get("/api/v1/skills").json()["skills"]}
+    # each person switches skills off for their own tasks (the Skills tab's switches)
+    assert all(k["on"] for k in a.get("/api/v1/skills").json()["skills"])
+    assert a.put("/api/v1/tools/prefs", json={"target": "tool", "id": "skill__weekly_report", "enabled": False}).status_code == 200
+    assert not {k["id"]: k for k in a.get("/api/v1/skills").json()["skills"]}[skill["id"]]["on"]
+    assert a.put("/api/v1/tools/prefs/many", json={"names": ["skill__weekly_report"], "enabled": True}).status_code == 200
     assert a.delete("/api/v1/skills/weekly-report").status_code == 204
     assert a.get("/api/v1/skills/weekly-report").status_code == 404
     assert 'id="view-skills"' in a.get("/admin").text

@@ -21,14 +21,18 @@ from typing import Any
 from agenticwf.auth.context import AuthContext
 
 from agenticwf.agent.core.common.logging import get_logger
+from agenticwf.agent.runtime.context.task_types import PROMPTS, PROMPTS_DIR, TASK_PROMPTS, TOOL_WORDING_DIR
 from agenticwf.agent.runtime.harness.state import WAITING_STATES
 from agenticwf.agent.runtime.llm.catalog import ModelCatalog
 from agenticwf.agent.runtime.session.state import TranscriptMessage
 from agenticwf.agent.runtime.messages import ThreadEvent
+from agenticwf.agent.runtime.overrides import (BUDGETS, HARNESS, PURPOSE, ROUTING, TASK_TYPE, check, effective, key_spec,
+                                               keys_for)
 from agenticwf.agent.runtime.records import Intent, IntentStatus
 from agenticwf.agent.runtime.task import Task, ToolCallStatus
 from agenticwf.agent.runtime.thread.manager import RuntimeThreadManager, StartThreadOptions
 from agenticwf.agent.runtime.thread.thread import RuntimeThread
+from agenticwf.agent.runtime.tools.loader import CORE_TOOLS_DIR, core_tool_names, core_tool_text
 from agenticwf.agent.runtime.types import Mode, RuntimeState, owner_key
 
 from agenticwf.agent.api.events import Updates
@@ -126,7 +130,96 @@ class AgentService:
         resolved = resolver.resolve(info.id, owner)
         files = {f.name: {"content": f.content, "source": f.source, "inherited": f.name not in info.files}
                  for f in (resolved.agents, resolved.workflow)}
-        return {**info.to_dict(), "content": files, "can_edit_user_types": resolver.user_sandbox is not None}
+        files.update({path: {"content": text, "source": f"{info.source}:{info.name}/{path}", "inherited": False}
+                      for path, text in resolver.extra_files(info.id, owner).items()})
+        layers = resolver.settings_layers(info.id, owner)
+        if layers["task_yaml"]["exists"]:   # read-only: only operators write it
+            files["task.yaml"] = {k: layers["task_yaml"][k] for k in ("content", "source", "inherited")}
+        return {**info.to_dict(), "content": files, "can_edit_user_types": resolver.user_sandbox is not None,
+                "settings_section": layers["section"], "settings_inherit": layers["inherits"],
+                "settings_rows": _setting_rows(layers["section"], list(keys_for(layers["section"])), layers["file"],
+                                               layers["all"], layers["mine"], layers["effective"]),
+                "can_set_all": "admin" in ctx.scopes}
+
+    # -- settings changed on the admin page, over agent.cfg and task.yaml (agenticwf.agent.runtime.overrides)
+    def _router(self):
+        llm = self.harness.services.llm
+        return llm if hasattr(llm, "configured") else None   # a ModelRouter; tests may run another LLM
+
+    def settings(self, ctx: AuthContext) -> dict[str, Any]:
+        """[harness], [llm.routing], [llm.purpose] and [llm.budgets]: agent.cfg's values, everyone's
+        changes, the caller's, and those in effect for the caller. Budgets: the default's and, for
+        others than admins, only their own and their organization's."""
+        owner, store, admin = owner_key(ctx), self.harness.overrides, "admin" in ctx.scopes
+        sections = [(HARNESS, "Harness", "agent.cfg [harness]", self.harness.harness_view())]
+        router = self._router()
+        if router is not None:
+            sections += [(ROUTING, "Model routing", "agent.cfg [llm.routing]", router.configured.view()),
+                         (PURPOSE, "Model per purpose", "agent.cfg [llm.purpose]", router.configured.purpose_view()),
+                         (BUDGETS, "Budgets", "agent.cfg [llm.budgets]", router.configured.budgets_view())]
+        out = []
+        for section, title, source, base in sections:
+            everyone = store.values(section) if store else {}
+            mine = store.values(section, owner) if store else {}
+            keys = list(keys_for(section))
+            if section == BUDGETS:
+                keys += sorted({*base, *everyone} - set(keys))
+                if not admin:
+                    yours = {f"user.{owner[0]}", f"max_tier.{owner[0]}",
+                             *((f"organization.{owner[1]}", f"max_tier.organization.{owner[1]}") if owner[1] else ())}
+                    keys = [k for k in keys if k in keys_for(BUDGETS) or k in yours]
+            rows = _setting_rows(section, keys, base, everyone, mine, effective(store, section, base, owner))
+            if section == PURPOSE:
+                models = [e.id for e in router.catalog.entries()]
+                rows = [{**r, "kind": "choice", "choices": models} for r in rows]
+            out.append({"section": section, "title": title, "source": source, "rows": rows,
+                        "add_keys": section == BUDGETS and admin})
+        return {"sections": out, "can_set_all": admin}
+
+    def set_setting(self, ctx: AuthContext, section: str, key: str, value: Any, everyone: bool) -> dict[str, Any]:
+        """Change one setting for everyone (admins) or for the caller's own tasks; None: back to the
+        layer below. KeyError: no such section or key the caller may see; PermissionError: not
+        theirs to change; ValueError: the value does not fit."""
+        owner, store = owner_key(ctx), self.harness.overrides
+        if store is None:
+            raise PermissionError("this agent keeps no settings changes")
+        if section.startswith(TASK_TYPE):
+            info = self.task_type_resolver.info(section[len(TASK_TYPE):], owner)
+            if info is None:
+                raise KeyError(section)
+            section = TASK_TYPE + info.id
+        elif section not in (HARNESS, ROUTING, PURPOSE, BUDGETS) or (section != HARNESS and self._router() is None):
+            raise KeyError(section)
+        spec = key_spec(section, key)
+        if spec is None:
+            raise KeyError(key)
+        if everyone and "admin" not in ctx.scopes:
+            raise PermissionError("only managers (admin scope) change a setting for everyone")
+        if not everyone and not spec.personal:
+            raise PermissionError(f"{key} is changed for everyone only, by managers")
+        if value is not None:
+            value = check(section, key, value, personal=not everyone)
+            if section == PURPOSE and self._router().catalog.get(value) is None:
+                raise ValueError(f"no model {value!r} (the Models tab lists them)")
+        store.set(section, key, value, None if everyone else owner, ctx.subject)
+        return {"section": section, "key": key, "value": value, "scope": "all" if everyone else "mine"}
+
+    def instructions(self, ctx: AuthContext) -> dict[str, Any]:
+        """What the system ships besides task types, to read and clone into a type of one's own:
+        the runtime prompts (as operators set them, or packaged) and the wording of core tools."""
+        resolver = self.task_type_resolver
+        prompts = []
+        for name in PROMPTS:
+            found = resolver.prompt(name)
+            prompts.append({"name": name, "path": f"{PROMPTS_DIR}/{name}.md", "per_type": name in TASK_PROMPTS,
+                            "source": found.source, "content": found.content})
+        tools = []
+        for name in core_tool_names():
+            summary, _, _ = core_tool_text(name)
+            tools.append({"name": name, "path": f"{TOOL_WORDING_DIR}/{name}.md", "summary": summary,
+                          "source": f"packaged:core-tools/{name}.md",
+                          "content": (CORE_TOOLS_DIR / f"{name}.md").read_text()})
+        return {"prompts": prompts, "core_tools": tools, "can_add": resolver.user_sandbox is not None}
 
     # -- plugins (docs/plugins.md) ----------------------------------------------------------------
     def plugins(self, ctx: AuthContext) -> list[dict[str, Any]]:
@@ -210,12 +303,13 @@ class AgentService:
     # -- tools and what each caller switched off (docs/admin-page.md, Tools) ---------------------
     def tools(self, ctx: AuthContext) -> dict[str, Any]:
         """Every tool the caller's tasks may use but skills (they have their own tab), each with where
-        it comes from and whether the caller switched it off; and the plugins and MCP endpoints that
-        provide them, which can be switched off as a whole."""
-        from agenticwf.agent.runtime.tools.prefs import origin, switchable, switched_off
+        it comes from and how the caller uses it (`mode`: on, ask, off); and the plugins and MCP
+        endpoints that provide them, which can be switched as a whole."""
+        from agenticwf.agent.runtime.tools.prefs import mode_of, origin, switchable, timeout_of
+        from agenticwf.agent.runtime.tools.registry import findability
 
         owner, dispatcher = owner_key(ctx), self.harness.services.tool_dispatcher
-        off, labels = dispatcher.prefs.disabled_for(owner), self._provider_labels(owner)
+        modes, labels = dispatcher.prefs.modes_for(owner), self._provider_labels(owner)
         hidden = dispatcher.hidden(owner)   # left out by the Knowledge tab's search tools
         tools, groups = [], {}
         for spec in sorted(dispatcher.registry.catalogue(owner), key=lambda s: s.name):
@@ -225,33 +319,62 @@ class AgentService:
             mine = spec.source.user_defined and spec.source.owner == owner
             for target, gid in (("plugin", found.plugin), ("mcp", found.endpoint)):
                 if gid:
+                    mode = modes.get(f"{target}:{gid}", "on")
                     group = groups.setdefault(f"{target}:{gid}", {
                         "target": target, "id": gid, "name": labels.get(f"{target}:{gid}") or gid.partition(":")[2],
                         "plugin": found.plugin if target == "mcp" else "", "mine": mine, "tools": 0,
-                        "enabled": f"{target}:{gid}" not in off})
+                        "mode": mode, "enabled": mode != "off"})
                     group["tools"] += 1
+            mode, effective = modes.get(f"tool:{spec.name}", "on"), mode_of(spec, modes)
             tools.append({"name": spec.name, "summary": spec.summary, "kind": found.kind, "plugin": found.plugin,
                           "endpoint": found.endpoint, "handler": spec.handler.kind.value,
                           "effects": spec.effective_effects.value, "approval": spec.approval.value, "mine": mine,
-                          "switchable": switchable(spec), "enabled": f"tool:{spec.name}" not in off,
-                          "active": not switched_off(spec, off) and spec.name not in hidden})
-        return {"tools": tools, "groups": sorted(groups.values(), key=lambda g: (g["target"], g["name"]))}
+                          "switchable": switchable(spec), "mode": mode, "enabled": mode != "off",
+                          "timeout": timeout_of(dispatcher.prefs, spec), "timeout_default": spec.timeout,
+                          "active": effective != "off" and spec.name not in hidden, "asks": effective == "ask",
+                          "findability": findability(spec)})
+        return {"tools": tools, "groups": sorted(groups.values(), key=lambda g: (g["target"], g["name"])),
+                "can_set_timeouts": "admin" in ctx.scopes}
 
-    def set_tool_pref(self, ctx: AuthContext, target: str, ref: str, enabled: bool) -> dict[str, Any]:
-        """Switch one tool (`ref`: its name), or every tool of a plugin or an MCP endpoint (its id), on
-        or off for the caller's tasks. KeyError: nothing of that name the caller may use; ValueError:
-        a tool that cannot be switched off."""
-        view = self.tools(ctx)
+    def set_tool_timeout(self, ctx: AuthContext, name: str, seconds: float | None) -> dict[str, Any]:
+        """An admin's timeout for one tool, for everyone (None: the tool's own). KeyError: no such
+        tool among the caller's."""
+        tool = next((t for t in self.tools(ctx)["tools"] if t["name"] == name), None)
+        if tool is None:
+            raise KeyError(name)
+        self.harness.services.tool_dispatcher.prefs.set_timeout(name, seconds, ctx.subject)
+        return next(t for t in self.tools(ctx)["tools"] if t["name"] == name)
+
+    def set_tool_pref(self, ctx: AuthContext, target: str, ref: str, mode: str) -> dict[str, Any]:
+        """Set one tool or skill (`ref`: its name), or every tool of a plugin or an MCP endpoint (its
+        id), to `on`, `ask` (each call waits for the caller's approval) or `off` for the caller's
+        tasks. KeyError: nothing of that name the caller may use; ValueError: a tool that cannot be
+        switched."""
         if target == "tool":
-            tool = next((t for t in view["tools"] if t["name"] == ref), None)
-            if tool is None:
-                raise KeyError(ref)
-            if not tool["switchable"]:
-                raise ValueError(f"{ref} is a control tool the agent always needs")
-        elif not any(g["target"] == target and g["id"] == ref for g in view["groups"]):
+            self._check_switchable(ctx, [ref])
+        elif not any(g["target"] == target and g["id"] == ref for g in self.tools(ctx)["groups"]):
             raise KeyError(ref)
-        self.harness.services.tool_dispatcher.prefs.set_enabled(owner_key(ctx), f"{target}:{ref}", enabled)
-        return {"target": target, "id": ref, "enabled": enabled}
+        self.harness.services.tool_dispatcher.prefs.set_mode(owner_key(ctx), f"{target}:{ref}", mode)
+        return {"target": target, "id": ref, "mode": mode, "enabled": mode != "off"}
+
+    def set_tool_prefs(self, ctx: AuthContext, names: list[str], mode: str) -> dict[str, Any]:
+        """Set several tools or skills at once (a group on the admin page): all of them, or none
+        when one is unknown (KeyError) or always on (ValueError)."""
+        self._check_switchable(ctx, names)
+        prefs, owner = self.harness.services.tool_dispatcher.prefs, owner_key(ctx)
+        for name in dict.fromkeys(names):
+            prefs.set_mode(owner, f"tool:{name}", mode)
+        return {"names": list(dict.fromkeys(names)), "mode": mode, "enabled": mode != "off"}
+
+    def _check_switchable(self, ctx: AuthContext, names: list[str]) -> None:
+        from agenticwf.agent.runtime.tools.prefs import switchable
+
+        specs = {s.name: s for s in self.harness.services.tool_dispatcher.registry.catalogue(owner_key(ctx))}
+        for name in names:
+            if name not in specs:
+                raise KeyError(name)
+            if not switchable(specs[name]):
+                raise ValueError(f"{name} is a control tool the agent always needs")
 
     def _provider_labels(self, owner) -> dict[str, str]:
         """`plugin:<id>` and `mcp:<id>` → the name the page shows."""
@@ -529,3 +652,15 @@ def _mcp_tool_view(tool, record, owner, names: dict[str, str]) -> dict[str, Any]
             "endpoint_enabled": endpoint.enabled, "visibility": tool.visibility or endpoint.effective_visibility,
             "inherits_visibility": not tool.visibility, "description": tool.description,
             "input_schema": tool.input_schema}
+
+
+def _setting_rows(section: str, keys: list[str], base: dict[str, Any], everyone: dict[str, Any],
+                  mine: dict[str, Any], in_effect: dict[str, Any]) -> list[dict[str, Any]]:
+    """One row per setting, as the admin page shows it: the file's value, everyone's, yours, in effect."""
+    rows = []
+    for key in keys:
+        spec = key_spec(section, key)
+        if spec is not None:
+            rows.append({"key": key, **spec.view(), "file": base.get(key), "all": everyone.get(key),
+                         "mine": mine.get(key) if spec.personal else None, "effective": in_effect.get(key)})
+    return rows

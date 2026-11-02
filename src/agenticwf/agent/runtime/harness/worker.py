@@ -188,12 +188,18 @@ class Workers:
 async def _run_job(harness: AgentHarness, job: Job, current, measured: dict[str, str]) -> bool:
     harness.store.prepare(job)   # shared: read what another process may have changed
     if job.kind == "intake":
-        await harness.intake(job.ref)
+        tasks = await harness.intake(job.ref)
+        intent = harness.store.load_intent(job.ref)
+        annotate(current, agenticwf__intent__id=job.ref, agenticwf__intent__intake=intent and intent.intake,
+                 agenticwf__intent__tasks=len(tasks),
+                 agenticwf__intent__task_types=",".join(t.task_type.requested for t in tasks))
         return False
     if job.kind == "task":
         task = await harness.run(job.ref, until_turn_boundary=True)
         annotate(current, agenticwf__task__state=task.state.value, agenticwf__task__type=task.task_type.effective,
-                 agenticwf__intent__id=task.intent_id, agenticwf__task__turn=task.active_turn)
+                 agenticwf__intent__id=task.intent_id, agenticwf__task__turn=task.active_turn,
+                 agenticwf__task__planned_by=task.planned_by or "none", agenticwf__task__plan_items=len(task.plan),
+                 agenticwf__task__escalations=task.escalations, agenticwf__task__min_tier=task.min_tier)
         measured["task_state"] = task.state.value
         if task.state is RuntimeState.FAILED:
             fail(current, (task.error or {}).get("code", "failed"))

@@ -51,7 +51,7 @@ def intent_trace(intent: Intent, tasks: list[Task], reply: Any, usage_rows: list
     return {
         "intent": {"id": intent.id, "text": _clip(intent.text), "status": intent.status.value,
                    "received_at": intent.received_at, "task_type": intent.requested_task_type,
-                   "model": intent.model, "source": intent.source},
+                   "model": intent.model, "source": intent.source, "intake": getattr(intent, "intake", "")},
         "reply": reply_view,
         "tasks": views,
         "model_calls": model_calls,
@@ -90,7 +90,9 @@ def _task(task: Task, link) -> dict[str, Any]:
             "input": _clip(task.input), "mode": task.mode.value, "model_id": task.model_id, "cost": task.cost,
             "escalations": task.escalations, "result": _clip(task.result) if task.result else None, "error": task.error,
             "plan": [{"id": i.id, "goal": i.goal, "phase": i.phase, "depends_on": i.depends_on} for i in task.plan],
-            "plan_revisions": len(task.plan_revisions), "turns": turns, "memories": list(task.recalled),
+            "plan_revisions": len(task.plan_revisions), "planned_by": getattr(task, "planned_by", ""),
+            "model_plan": list(getattr(task, "model_plan", ())), "model_phase": getattr(task, "model_phase", ""),
+            "min_tier": task.min_tier, "escalation_log": list(getattr(task, "escalation_log", ())), "turns": turns, "memories": list(task.recalled),
             "tool_calls": [_call(c, link) for c in task.calls if c.id not in placed]}   # outside any recorded step
 
 

@@ -10,8 +10,12 @@ code, so change them only together with it.
 | `complete_turn.md` | Control tool | In the turns of a multi-turn plan |
 | `read_skill_file.md` | Control tool | While a skill with files runs |
 | `report_issue.md`, `report_check.md` | Control tools (`agenticwf.agent.runtime.cron`) | In a cron's check tasks |
+| `search_code.md`, `read_file.md` | `agenticwf.agent.runtime.code` (repositories users add: the admin page's Code tab) | When `[code] root` is set |
 | `memory_search.md` | `agenticwf.agent.runtime.context.memory` | When long-term memory is configured |
 | `skill.md` | The template every skill is offered with, `skill__<name>` (`agenticwf.agent.runtime.skills.skill`); `${description}` is the skill's own description | For each skill the task may use |
 
 These are packaged with the runtime and are not read from `<system dir>`: unlike `prompts/`,
-operators cannot override them.
+operators cannot override them for everyone. A task type may reword one for its tasks with
+`task-types/<type>/core-tools/<name>.md`: this file's front matter unchanged, a new description
+below it (users clone them on the admin page's Instructions tab; `skill.md` is not one tool, so not
+this one).

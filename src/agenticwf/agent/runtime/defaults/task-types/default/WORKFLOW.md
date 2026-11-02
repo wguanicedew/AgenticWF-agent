@@ -1,16 +1,11 @@
 # Workflow
 
-The agent operates in these phases:
+The agent works in these phases:
 
 ## PLAN
 
 Goal:
 Understand the requested outcome.
-
-Allowed actions:
-- inspect task
-- inspect repository structure
-- formulate plan
 
 Transition to RESEARCH when:
 - required information is missing
@@ -22,44 +17,29 @@ Transition to EXECUTE when:
 ## RESEARCH
 
 Goal:
-Gather evidence required to solve the task.
+Gather the evidence required to answer or act.
 
-Preferred tools:
-- search_code
-- read_file
-- web_search
-
-Do not modify files during this phase.
+Prefer the tools listed for this task; use `search_tools` when none fits.
+Do not change anything during this phase.
 
 Transition to EXECUTE when:
-- probable solution has been identified
+- the answer or the action is clear
 
 
 ## EXECUTE
 
 Goal:
-Apply changes.
-
-Allowed tools:
-- read_file
-- edit_file
-- run_command
-
-After modifying code:
-transition to VERIFY.
+Answer, or carry out the change, with the listed tools.
 
 
 ## VERIFY
 
 Goal:
-Determine whether the requested outcome was achieved.
+Check that the requested outcome was achieved: the answer covers the question and cites its
+sources, or the change did what was asked.
 
-Required:
-- run relevant tests
-- inspect failures
-
-If verification fails:
+If it was not:
 transition back to RESEARCH or EXECUTE.
 
-If verification succeeds:
+If it was:
 transition to DONE.

@@ -10,12 +10,20 @@
     agenticwf agent cancel TID
     agenticwf agent call GET /models                 any agent API call (the path under /api/v1)
 
+Only the agent's URL is needed; the agent tells how to sign in:
+
+    export AGENTICWF_AGENT_URL=https://host.example.org/app      # behind Caddy
+    agenticwf login                                              # once
+
 Behind Caddy it signs in as `agenticwf token` does (`agenticwf login`, AGENTICWF_TOKEN or
-AGENTICWF_CLIENT_SECRET; chats need a person, not a machine client) and finds the agent at
-AGENTICWF_API_URL. The personal agent has its own token instead:
+AGENTICWF_CLIENT_SECRET; chats need a person, not a machine client), with the Logto settings
+the server publishes (AGENTICWF_AUTH_URL, _CLIENT_ID, _RESOURCE override them). Without
+AGENTICWF_AGENT_URL it finds the agent at AGENTICWF_API_URL. The personal agent has its own
+token instead, read from ~/.agenticwf-agent/token when it runs on this machine:
 
     export AGENTICWF_AGENT_URL=http://127.0.0.1:8765
-    export AGENTICWF_AGENT_TOKEN_FILE=~/.agenticwf-agent/token     # or AGENTICWF_AGENT_TOKEN
+    export AGENTICWF_AGENT_URL='http://127.0.0.1:8765/?token=…'  # or its sign-in link (in a container)
+    export AGENTICWF_AGENT_TOKEN=…                               # or the token, or _TOKEN_FILE
 
 `--json` prints the API's data as it is (for jq).
 """

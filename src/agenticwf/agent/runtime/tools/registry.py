@@ -160,6 +160,9 @@ class ToolRegistry:
             return fn
         if kind is HandlerKind.MCP:
             return self.mcp.handler(spec)
+        if kind is HandlerKind.COMMAND:
+            fn = self.plugins.command_handler(spec)
+            return fn or _unavailable("command tools run only in an enabled system plugin")
         if kind is HandlerKind.SKILL:
             if self.skills is None:
                 return _unavailable("skills are not configured")
@@ -172,8 +175,11 @@ class ToolRegistry:
         The `k` candidates closest to `query`, best first. Deterministic: ties are broken by name.
         Candidates are already visibility-filtered.
 
-        Words: BM25 over each tool's name (weight 3), summary and tags (2) and description (1), so
-        words rare among the candidates count more than common ones. Meaning, with `embeddings`:
+        A query that is a candidate's exact name (search_tools with a name from the index of tools
+        in the system prompt) puts it first.
+
+        Words: BM25 over each tool's name (weight 3), summary and tags (2), description and argument
+        names (1), so words rare among the candidates count more than common ones. Meaning, with `embeddings`:
         the cosine similarity of the query's and the tool's embeddings. The score combines both
         (`[embeddings] weight` for the similarity, BM25 scaled to the best candidate for the rest);
         a candidate that shares no word with the query is kept when its similarity reaches
@@ -195,7 +201,8 @@ class ToolRegistry:
                       for score, sim, spec in zip(lexical, similarity, candidates)
                       if score > 0 or sim >= settings.min_similarity]
         ranked.sort(key=lambda r: (-r[0], r[1].name))
-        return [spec for _, spec in ranked[:k]]
+        exact = [s for s in candidates if s.name == query.strip()]
+        return [*exact, *(spec for _, spec in ranked if spec.name != query.strip())][:k]
 
     def embedding_texts(self, owner: Owner) -> list[str]:
         """What the owner's tools and skills are matched by meaning with (EmbeddingIndex.prepare)."""
@@ -215,7 +222,7 @@ def _bm25(words: set[str], candidates: list[ToolSpec]) -> list[float]:
     for spec in candidates:
         counts: Counter[str] = Counter()
         for weight, text in ((3, spec.name.replace("_", " ")), (2, f"{spec.summary} {' '.join(spec.tags)}"),
-                             (1, spec.description)):
+                             (1, f"{spec.description} {_arguments(spec)}")):
             for term in terms(text, unique=False):
                 counts[term] += weight
         docs.append(counts)
@@ -235,9 +242,33 @@ def _bm25(words: set[str], candidates: list[ToolSpec]) -> list[float]:
     return [score(t) for t in docs]
 
 
+def _arguments(spec: ToolSpec) -> str:
+    """Its argument names as words: `dataset_name` says what a tool works on even when its
+    description does not (MCP tools often have one line)."""
+    properties = (spec.input_schema or {}).get("properties") or {}
+    return " ".join(str(name).replace("_", " ") for name in properties)
+
+
+def findability(spec: ToolSpec) -> str:
+    """Why selection may miss a tool ("" when nothing): it is matched by its name, summary, tags,
+    description and argument names, and the summary is all the model sees in the index of tools."""
+    if spec.handler.kind is HandlerKind.CONTROL:
+        return ""
+    summary = " ".join(spec.summary.split())
+    if not summary or summary.lower().replace(" ", "_") in (spec.name.lower(), spec.name.rpartition("__")[2].lower()):
+        return "no summary: only its name says what it does"
+    if len(summary) < 25:
+        return "a short summary: say what it does and on what"
+    if len(spec.description) <= len(summary) + 20 and not spec.tags and not _arguments(spec):
+        return "little to match: no description beyond the summary, no tags, no arguments"
+    return ""
+
+
 def _document(spec: ToolSpec) -> str:
     """What a tool's embedding is made of."""
-    return f"{spec.name}: {spec.summary}\n{' '.join(spec.tags)}\n{spec.description[:2000]}"
+    arguments = _arguments(spec)
+    return (f"{spec.name}: {spec.summary}\n{' '.join(spec.tags)}\n{spec.description[:2000]}"
+            + (f"\narguments: {arguments}" if arguments else ""))
 
 
 def _add(shared: dict[str, ToolSpec], spec: ToolSpec) -> None:

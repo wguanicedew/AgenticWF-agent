@@ -1,0 +1,5 @@
+# Hard settings of the `default` task type (docs/agent-runtime.md, Task types). Read by the harness
+# and the policy engine, never by the model; only `description` is shown to it, when intake chooses
+# types. Types without a task.yaml of their own inherit these settings. Admins change them on the
+# admin page (stored in the database); this file is never written.
+description: General work that no other type fits
