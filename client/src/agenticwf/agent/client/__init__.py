@@ -15,16 +15,31 @@ Errors raise AgentClientError (the API's `detail`). It has no dependency on the 
 from __future__ import annotations
 
 import os
+import ssl
 import time
 from pathlib import Path
 from typing import Any, Callable
 
+import certifi
 import httpx
 
 __all__ = ["AgentClient", "AgentClientError", "FINISHED"]
 
 # A task's status once it no longer changes by itself; `waiting` needs an approval or an answer.
 FINISHED = frozenset({"succeeded", "partial", "failed", "cancelled"})
+
+
+def _trust() -> ssl.SSLContext:
+    """The system's CAs (SSL_CERT_FILE / SSL_CERT_DIR honoured) and certifi's, as httpx alone trusts
+    only certifi's; with agenticwf-auth-client, also CERN's and AGENTICWF_CA_BUNDLE (its tls.py), so
+    a CERN host works where the system lacks its CA. Added to the system's, never instead."""
+    try:
+        from agenticwf_auth_cli import ssl_context
+    except ImportError:
+        context = ssl.create_default_context()
+        context.load_verify_locations(certifi.where())
+        return context
+    return ssl_context()
 
 
 class AgentClientError(Exception):
@@ -42,7 +57,7 @@ class AgentClient:
         self.base = base_url.rstrip("/")
         self._auth = {"Authorization": f"Bearer {bearer}"} if bearer else {}
         self._headers = headers
-        self._http = http or httpx.Client(timeout=timeout)
+        self._http = http or httpx.Client(timeout=timeout, verify=_trust())
 
     @classmethod
     def from_env(cls, url: str | None = None, token: str | None = None, **options) -> "AgentClient":
