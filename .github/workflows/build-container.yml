@@ -35,14 +35,14 @@ jobs:
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.AGENTICWF_REPO }}
           ref: ${{ env.AGENTICWF_REF }}
           path: .agenticwf
           # If AgenticWF-auth is private, add a read token: token: ${{ secrets.AGENTICWF_TOKEN }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: |
@@ -64,23 +64,23 @@ jobs:
       - name: Check the authsvc ref
         if: github.ref_type == 'tag' && env.AGENTICWF_REF == 'main'
         run: echo "::warning::authsvc is built from AgenticWF-auth main; set the AGENTICWF_REF repository variable to the deployed auth release"
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: ${{ env.AGENTICWF_REPO }}
           ref: ${{ env.AGENTICWF_REF }}
           path: .agenticwf
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -92,7 +92,7 @@ jobs:
             org.opencontainers.image.version=${{ github.ref_name }}
             org.agenticwf.authsvc-ref=${{ env.AGENTICWF_REF }}
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: container/Dockerfile
